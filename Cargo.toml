@@ -1,7 +1,7 @@
 # https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [package]
-name = "geometry-rs"
+name = "geometry_x"
 version = "0.1.0"
 edition = "2018"
 
