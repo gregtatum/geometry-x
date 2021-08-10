@@ -60,8 +60,7 @@ pub enum SingleQuadOptions {
     /// # use cgmath::*;
     /// # use geometry_x::quads::*;
     /// let mut mesh = QuadMesh::new();
-    /// create_single_quad(
-    ///     &mut mesh,
+    /// mesh.create_single_quad(
     ///     SingleQuadOptions::FromPositions((
     ///         vec3(-4.0, 0.0, -3.0),
     ///         vec3(-4.0, 0.0, 3.0),
@@ -94,8 +93,7 @@ pub enum SingleQuadOptions {
     /// # use cgmath::*;
     /// # use geometry_x::quads::*;
     /// let mut mesh = QuadMesh::new();
-    /// create_single_quad(
-    ///     &mut mesh,
+    /// mesh.create_single_quad(
     ///     SingleQuadOptions::FromSize((
     ///         vec2(2.0, 4.0),
     ///         Facing {
@@ -178,8 +176,7 @@ impl QuadMesh {
     /// # use cgmath::*;
     /// let mut mesh = QuadMesh::new();
     ///
-    /// create_single_quad(
-    ///     &mut mesh,
+    /// mesh.create_single_quad(
     ///     SingleQuadOptions::FromSize((
     ///         vec2(2.0, 4.0),
     ///         Facing {
@@ -200,88 +197,89 @@ impl QuadMesh {
     pub fn iter_cells(&self) -> impl Iterator<Item = &Cell> {
         self.cells.iter()
     }
+
+    /// See [SingleQuadOptions] for different inputs for creating a single quad inside
+    /// of a QuadMesh.
+    ///
+    /// ```text
+    ///    -5 -4 -3 -2 -1  0  1  2  3  4  5
+    /// -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    /// -4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    /// -3  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    /// -2  ·  ·  ·  ·  ◆━━━━━◆  ·  ·  ·  ·
+    /// -1  ·  ·  ·  ·  ┃  ┊  ┃  ·  ·  ·  ·
+    ///  0 ┈┈┈┈┈┈┈┈┈┈┈┈┈┃┈┈┊┈┈┃┈┈┈┈┈┈┈┈┈┈┈┈┈
+    ///  1  ·  ·  ·  ·  ┃  ┊  ┃  ·  ·  ·  ·
+    ///  2  ·  ·  ·  ·  ◆━━━━━◆  ·  ·  ·  ·
+    ///  3  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///  4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///  5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    /// ```
+    pub fn create_single_quad(&mut self, options: SingleQuadOptions) {
+        let mut positions = &mut self.positions;
+        let cell = Vector4::new(
+            positions.len(),
+            positions.len() + 1,
+            positions.len() + 2,
+            positions.len() + 3,
+        );
+
+        match options {
+            SingleQuadOptions::FromPositions((a, b, c, d)) => {
+                positions.push(a);
+                positions.push(b);
+                positions.push(c);
+                positions.push(d);
+            }
+            SingleQuadOptions::FromSize((size, facing)) => {
+                let (x, y) = (size.x / 2.0, size.y / 2.0);
+                match facing.axis {
+                    Axis::X => {
+                        positions.push((0.0, -x, -y).into());
+                        positions.push((0.0, x, -y).into());
+                        positions.push((0.0, x, y).into());
+                        positions.push((0.0, -x, y).into());
+                    }
+                    Axis::Y => {
+                        positions.push((-x, 0.0, -y).into());
+                        positions.push((-x, 0.0, y).into());
+                        positions.push((x, 0.0, y).into());
+                        positions.push((x, 0.0, -y).into());
+                    }
+                    Axis::Z => {
+                        positions.push((x, -y, 0.0).into());
+                        positions.push((x, y, 0.0).into());
+                        positions.push((-x, y, 0.0).into());
+                        positions.push((-x, -y, 0.0).into());
+                    }
+                };
+            }
+        };
+
+        self.cells.push(cell);
+        let mut normals = vec![];
+        let normal = self.get_cell_normal(&cell);
+        normals.push(normal);
+        normals.push(normal);
+        normals.push(normal);
+        normals.push(normal);
+    }
+
+    /// Compute a cell's normal regardless of it's neighboring cells.
+    pub fn get_cell_normal(&self, cell: &Cell) -> Normal {
+        let position_a = self.positions.get(cell.x).expect("Unable to find position");
+        let position_b = self.positions.get(cell.y).expect("Unable to find position");
+        let position_c = self.positions.get(cell.z).expect("Unable to find position");
+        let edge_a = position_b - position_a;
+        let edge_b = position_c - position_b;
+        edge_a.cross(edge_b).normalize()
+    }
 }
 
 impl Default for QuadMesh {
     fn default() -> Self {
         Self::new()
     }
-}
-
-/// Compute a cell's normal regardless of it's neighboring cells.
-fn get_cell_normal(mesh: &QuadMesh, cell: &Cell) -> Vector3<f64> {
-    let position_a = mesh.positions.get(cell.x).expect("Unable to find position");
-    let position_b = mesh.positions.get(cell.y).expect("Unable to find position");
-    let position_c = mesh.positions.get(cell.z).expect("Unable to find position");
-    let edge_a = position_b - position_a;
-    let edge_b = position_c - position_b;
-    edge_a.cross(edge_b).normalize()
-}
-
-/// See [SingleQuadOptions] for different inputs for creating a single quad inside
-/// of a QuadMesh.
-///
-/// ```text
-///    -5 -4 -3 -2 -1  0  1  2  3  4  5
-/// -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-/// -4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-/// -3  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-/// -2  ·  ·  ·  ·  ◆━━━━━◆  ·  ·  ·  ·
-/// -1  ·  ·  ·  ·  ┃  ┊  ┃  ·  ·  ·  ·
-///  0 ┈┈┈┈┈┈┈┈┈┈┈┈┈┃┈┈┊┈┈┃┈┈┈┈┈┈┈┈┈┈┈┈┈
-///  1  ·  ·  ·  ·  ┃  ┊  ┃  ·  ·  ·  ·
-///  2  ·  ·  ·  ·  ◆━━━━━◆  ·  ·  ·  ·
-///  3  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-///  4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-///  5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-/// ```
-pub fn create_single_quad(mesh: &mut QuadMesh, options: SingleQuadOptions) {
-    let cell = Vector4::new(
-        mesh.positions.len(),
-        mesh.positions.len() + 1,
-        mesh.positions.len() + 2,
-        mesh.positions.len() + 3,
-    );
-
-    match options {
-        SingleQuadOptions::FromPositions(positions) => {
-            mesh.positions.push(positions.0);
-            mesh.positions.push(positions.1);
-            mesh.positions.push(positions.2);
-            mesh.positions.push(positions.3);
-        }
-        SingleQuadOptions::FromSize((size, facing)) => {
-            let (x, y) = (size.x / 2.0, size.y / 2.0);
-            match facing.axis {
-                Axis::X => {
-                    mesh.positions.push((0.0, -x, -y).into());
-                    mesh.positions.push((0.0, x, -y).into());
-                    mesh.positions.push((0.0, x, y).into());
-                    mesh.positions.push((0.0, -x, y).into());
-                }
-                Axis::Y => {
-                    mesh.positions.push((-x, 0.0, -y).into());
-                    mesh.positions.push((-x, 0.0, y).into());
-                    mesh.positions.push((x, 0.0, y).into());
-                    mesh.positions.push((x, 0.0, -y).into());
-                }
-                Axis::Z => {
-                    mesh.positions.push((x, -y, 0.0).into());
-                    mesh.positions.push((x, y, 0.0).into());
-                    mesh.positions.push((-x, y, 0.0).into());
-                    mesh.positions.push((-x, -y, 0.0).into());
-                }
-            };
-        }
-    };
-
-    mesh.cells.push(cell);
-    let mut normals = vec![];
-    let normal = get_cell_normal(mesh, &cell);
-    normals.push(normal);
-    normals.push(normal);
-    normals.push(normal);
-    normals.push(normal);
 }
 
 /// A trait to draw some piece of geometry using text art. See https://gregtatum.com/writing/2020/ascii-physics-system/
@@ -448,16 +446,13 @@ mod test {
     #[test]
     fn test_create_quad_from_size() {
         let mut mesh = QuadMesh::new();
-        create_single_quad(
-            &mut mesh,
-            SingleQuadOptions::FromSize((
-                vec2(2.0, 4.0),
-                Facing {
-                    axis: Axis::Z,
-                    direction: Direction::Positive,
-                },
-            )),
-        );
+        mesh.create_single_quad(SingleQuadOptions::FromSize((
+            vec2(2.0, 4.0),
+            Facing {
+                axis: Axis::Z,
+                direction: Direction::Positive,
+            },
+        )));
 
         assert_snapshot!(mesh.as_text_art(Axis::Z), @r###"
            -5 -4 -3 -2 -1  0  1  2  3  4  5
@@ -478,15 +473,12 @@ mod test {
     #[test]
     fn test_create_quad_positions() {
         let mut mesh = QuadMesh::new();
-        create_single_quad(
-            &mut mesh,
-            SingleQuadOptions::FromPositions((
-                vec3(-4.0, 0.0, -3.0),
-                vec3(-4.0, 0.0, 3.0),
-                vec3(1.0, 0.0, 3.0),
-                vec3(1.0, 0.0, -3.0),
-            )),
-        );
+        mesh.create_single_quad(SingleQuadOptions::FromPositions((
+            vec3(-4.0, 0.0, -3.0),
+            vec3(-4.0, 0.0, 3.0),
+            vec3(1.0, 0.0, 3.0),
+            vec3(1.0, 0.0, -3.0),
+        )));
 
         assert_snapshot!(mesh.as_text_art(Axis::Y), @r###"
            -5 -4 -3 -2 -1  0  1  2  3  4  5
