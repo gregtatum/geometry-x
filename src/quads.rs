@@ -59,8 +59,8 @@ pub enum SingleQuadOptions {
     /// ```
     /// # use cgmath::*;
     /// # use geometry_x::quads::*;
-    /// let mut mesh = QuadMesh::new();
-    /// mesh.create_single_quad(
+    /// let mut quads = QuadMesh::new();
+    /// quads.create_single_quad(
     ///     SingleQuadOptions::FromPositions((
     ///         vec3(-4.0, 0.0, -3.0),
     ///         vec3(-4.0, 0.0, 3.0),
@@ -69,7 +69,7 @@ pub enum SingleQuadOptions {
     ///     )),
     /// );
     ///
-    /// assert_eq!(mesh.as_text_art(Axis::Y).as_str(), &"
+    /// assert_eq!(quads.as_text_art(Axis::Y).as_str(), &"
     ///    -5 -4 -3 -2 -1  0  1  2  3  4  5
     /// -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
     /// -4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
@@ -92,8 +92,8 @@ pub enum SingleQuadOptions {
     /// ```
     /// # use cgmath::*;
     /// # use geometry_x::quads::*;
-    /// let mut mesh = QuadMesh::new();
-    /// mesh.create_single_quad(
+    /// let mut quads = QuadMesh::new();
+    /// quads.create_single_quad(
     ///     SingleQuadOptions::FromSize((
     ///         vec2(2.0, 4.0),
     ///         Facing {
@@ -103,7 +103,7 @@ pub enum SingleQuadOptions {
     ///     )),
     /// );
     ///
-    /// assert_eq!(mesh.as_text_art(Axis::Z).as_str(), &"
+    /// assert_eq!(quads.as_text_art(Axis::Z).as_str(), &"
     ///    -5 -4 -3 -2 -1  0  1  2  3  4  5
     /// -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
     /// -4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
@@ -174,9 +174,9 @@ impl QuadMesh {
     /// ```
     /// # use geometry_x::quads::*;
     /// # use cgmath::*;
-    /// let mut mesh = QuadMesh::new();
+    /// let mut quads = QuadMesh::new();
     ///
-    /// mesh.create_single_quad(
+    /// quads.create_single_quad(
     ///     SingleQuadOptions::FromSize((
     ///         vec2(2.0, 4.0),
     ///         Facing {
@@ -186,8 +186,8 @@ impl QuadMesh {
     ///     )),
     /// );
     ///
-    /// for cell in mesh.iter_cells() {
-    ///    let (a, b, c, d) = mesh.get_positions(&cell);
+    /// for cell in quads.iter_cells() {
+    ///    let (a, b, c, d) = quads.get_positions(&cell);
     ///    assert_eq!(a, &Vector3::new(1.0, -2.0, 0.0));
     ///    assert_eq!(b, &Vector3::new(1.0, 2.0, 0.0));
     ///    assert_eq!(c, &Vector3::new(-1.0, 2.0, 0.0));
@@ -445,8 +445,8 @@ mod test {
 
     #[test]
     fn test_create_quad_from_size() {
-        let mut mesh = QuadMesh::new();
-        mesh.create_single_quad(SingleQuadOptions::FromSize((
+        let mut quads = QuadMesh::new();
+        quads.create_single_quad(SingleQuadOptions::FromSize((
             vec2(2.0, 4.0),
             Facing {
                 axis: Axis::Z,
@@ -454,7 +454,7 @@ mod test {
             },
         )));
 
-        assert_snapshot!(mesh.as_text_art(Axis::Z), @r###"
+        assert_snapshot!(quads.as_text_art(Axis::Z), @r###"
            -5 -4 -3 -2 -1  0  1  2  3  4  5
         -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
         -4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
@@ -472,15 +472,15 @@ mod test {
 
     #[test]
     fn test_create_quad_positions() {
-        let mut mesh = QuadMesh::new();
-        mesh.create_single_quad(SingleQuadOptions::FromPositions((
+        let mut quads = QuadMesh::new();
+        quads.create_single_quad(SingleQuadOptions::FromPositions((
             vec3(-4.0, 0.0, -3.0),
             vec3(-4.0, 0.0, 3.0),
             vec3(1.0, 0.0, 3.0),
             vec3(1.0, 0.0, -3.0),
         )));
 
-        assert_snapshot!(mesh.as_text_art(Axis::Y), @r###"
+        assert_snapshot!(quads.as_text_art(Axis::Y), @r###"
            -5 -4 -3 -2 -1  0  1  2  3  4  5
         -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
         -4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
