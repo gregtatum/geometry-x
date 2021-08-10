@@ -47,6 +47,8 @@ pub type Positions = Vec<Position>;
 pub type Normals = Vec<Normal>;
 /// A single cell in a [simplicial complex](https://en.wikipedia.org/wiki/Simplicial_complex).
 pub type Cell = Vector4<usize>;
+/// A convience for destructuring.
+pub type CellTuple = (usize, usize, usize, usize);
 /// The list of all cells in the mesh or [simplicial complex](https://en.wikipedia.org/wiki/Simplicial_complex).
 pub type Cells = Vec<Vector4<usize>>;
 
@@ -125,12 +127,24 @@ pub enum SingleQuadOptions {
 #[derive(PartialEq, Debug, Clone)]
 pub struct QuadMesh {
     /// Indexes into the positions array. A single cell represents a single quad.
-    cells: Cells,
+    pub cells: Cells,
     /// The positions in an unordered Vector.
-    positions: Positions,
+    pub positions: Positions,
     /// The computed normals for a quad mesh.
-    normals: Option<Normals>,
+    pub normals: Option<Normals>,
 }
+
+/// A shared error for [QuadMesh] operations.
+#[derive(Debug)]
+pub enum QuadError {
+    /// A position was not found for a given index.
+    PositionIndexError,
+    /// A cell was not found for a given index.
+    CellIndexError,
+}
+
+/// A [Result] with the [QuadError] applied.
+pub type QuadResult<T> = Result<T, QuadError>;
 
 impl QuadMesh {
     /// Create a new [QuadMesh] with no normals.
@@ -149,6 +163,45 @@ impl QuadMesh {
             positions: vec![],
             normals: Some(vec![]),
         }
+    }
+
+    /// Get a position from the mesh by index.
+    pub fn get_position(&self, index: usize) -> QuadResult<&Position> {
+        match self.positions.get(index) {
+            Some(position) => Ok(position),
+            None => Err(QuadError::PositionIndexError),
+        }
+    }
+
+    /// Get a clone of a position based on its index.
+    pub fn clone_position(&self, index: usize) -> QuadResult<Position> {
+        self.get_position(index).map(|p| *p)
+    }
+
+    /// Get a [Cell] from the mesh by index.
+    pub fn get_cell(&self, index: usize) -> QuadResult<&Cell> {
+        match self.cells.get(index) {
+            Some(cell) => Ok(cell),
+            None => Err(QuadError::CellIndexError),
+        }
+    }
+
+    /// Get a mutable [Cell] from the mesh by index.
+    pub fn get_cell_mut(&mut self, index: usize) -> QuadResult<&mut Cell> {
+        match self.cells.get_mut(index) {
+            Some(cell) => Ok(cell),
+            None => Err(QuadError::CellIndexError),
+        }
+    }
+
+    /// Get a clone of a position based on its index.
+    pub fn clone_cell(&self, index: usize) -> QuadResult<Cell> {
+        self.get_cell(index).map(|c| *c)
+    }
+
+    // Get an easy to destructure cell.
+    fn get_cell_tuple(&self, index: usize) -> QuadResult<CellTuple> {
+        self.get_cell(index).map(|c| (*c).into())
     }
 
     /// Given a [Cell], look up a [Position]s tuple.
@@ -273,6 +326,80 @@ impl QuadMesh {
         let edge_a = position_b - position_a;
         let edge_b = position_c - position_b;
         edge_a.cross(edge_b).normalize()
+    }
+
+    /// Split a cell vertically.
+    ///
+    /// ```
+    /// # use geometry_x::quads::*;
+    /// # use cgmath::*;
+    /// let mut quads = QuadMesh::new();
+    /// quads.create_single_quad(SingleQuadOptions::FromSize((
+    ///     vec2(8.0, 8.0),
+    ///     Facing {
+    ///         axis: Axis::Z,
+    ///         direction: Direction::Positive,
+    ///     },
+    /// )));
+    ///
+    /// assert_eq!(quads.as_text_art(Axis::Z), "
+    ///    -5 -4 -3 -2 -1  0  1  2  3  4  5
+    /// -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    /// -4  ·  ◆━━━━━━━━━━━━━━━━━━━━━━━◆  ·
+    /// -3  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+    /// -2  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+    /// -1  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+    ///  0 ┈┈┈┈┃┈┈┈┈┈┈┈┈┈┈┈┊┈┈┈┈┈┈┈┈┈┈┈┃┈┈┈┈
+    ///  1  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+    ///  2  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+    ///  3  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+    ///  4  ·  ◆━━━━━━━━━━━━━━━━━━━━━━━◆  ·
+    ///  5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    /// "[1..]);
+    ///
+    /// let cell_a = quads.cells.len() - 1;
+    /// quads
+    ///     .split_vertical(cell_a, 0.2)
+    ///     .expect("Unable to split cells.");
+    ///
+    /// assert_eq!(quads.as_text_art(Axis::Z), "
+    ///    -5 -4 -3 -2 -1  0  1  2  3  4  5
+    /// -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    /// -4  ·  ◆━━━━━━━━━━━━━━━━━◆━━━━━◆  ·
+    /// -3  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
+    /// -2  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
+    /// -1  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
+    ///  0 ┈┈┈┈┃┈┈┈┈┈┈┈┈┈┈┈┊┈┈┈┈┈┃┈┈┈┈┈┃┈┈┈┈
+    ///  1  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
+    ///  2  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
+    ///  3  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
+    ///  4  ·  ◆━━━━━━━━━━━━━━━━━◆━━━━━◆  ·
+    ///  5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    /// "[1..]);
+    /// ```
+
+    pub fn split_vertical(&mut self, cell_index: usize, t: f64) -> QuadResult<()> {
+        //  b---bc---c
+        //  |   |    |
+        //  |   |    |
+        //  a---ad---d
+        let (pt_bc, pt_ad) = {
+            let (pt_a, pt_b, pt_c, pt_d) = self.get_positions(self.get_cell(cell_index)?);
+            (pt_b.lerp(*pt_c, t), pt_a.lerp(*pt_d, t))
+        };
+        let bc = self.positions.len();
+        self.positions.push(pt_bc);
+
+        let ad = self.positions.len();
+        self.positions.push(pt_ad);
+
+        let (_a, _b, c, d) = self.get_cell_tuple(cell_index)?;
+        self.cells.push(vec4(ad, bc, c, d));
+
+        let mut cell = self.get_cell_mut(cell_index)?;
+        cell.z = bc;
+        cell.w = ad;
+        Ok(())
     }
 }
 
@@ -492,6 +619,73 @@ mod test {
          2  ·  ┃  ·  ·  ·  ┊  ┃  ·  ·  ·  ·
          3  ·  ◆━━━━━━━━━━━━━━◆  ·  ·  ·  ·
          4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+         5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+        "###);
+    }
+
+    #[test]
+    fn test_split_vertically() {
+        let mut quads = QuadMesh::new();
+        quads.create_single_quad(SingleQuadOptions::FromSize((
+            vec2(8.0, 8.0),
+            Facing {
+                axis: Axis::Z,
+                direction: Direction::Positive,
+            },
+        )));
+
+        assert_snapshot!(quads.as_text_art(Axis::Z), @r###"
+           -5 -4 -3 -2 -1  0  1  2  3  4  5
+        -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+        -4  ·  ◆━━━━━━━━━━━━━━━━━━━━━━━◆  ·
+        -3  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+        -2  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+        -1  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+         0 ┈┈┈┈┃┈┈┈┈┈┈┈┈┈┈┈┊┈┈┈┈┈┈┈┈┈┈┈┃┈┈┈┈
+         1  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+         2  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+         3  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+         4  ·  ◆━━━━━━━━━━━━━━━━━━━━━━━◆  ·
+         5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+        "###);
+
+        let cell_a = quads.cells.len() - 1;
+        quads
+            .split_vertical(cell_a, 0.2)
+            .expect("Unable to split cells.");
+
+        assert_snapshot!(quads.as_text_art(Axis::Z), @r###"
+           -5 -4 -3 -2 -1  0  1  2  3  4  5
+        -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+        -4  ·  ◆━━━━━━━━━━━━━━━━━◆━━━━━◆  ·
+        -3  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
+        -2  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
+        -1  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
+         0 ┈┈┈┈┃┈┈┈┈┈┈┈┈┈┈┈┊┈┈┈┈┈┃┈┈┈┈┈┃┈┈┈┈
+         1  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
+         2  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
+         3  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
+         4  ·  ◆━━━━━━━━━━━━━━━━━◆━━━━━◆  ·
+         5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+        "###);
+
+        let cell_b = quads.cells.len() - 1;
+        quads
+            .split_vertical(cell_b, 0.9)
+            .expect("Unable to split cells.");
+
+        assert_snapshot!(quads.as_text_art(Axis::Z), @r###"
+           -5 -4 -3 -2 -1  0  1  2  3  4  5
+        -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+        -4  ·  ◆━━◆━━━━━━━━━━━━━━◆━━━━━◆  ·
+        -3  ·  ┃  ┃  ·  ·  ┊  ·  ┃  ·  ┃  ·
+        -2  ·  ┃  ┃  ·  ·  ┊  ·  ┃  ·  ┃  ·
+        -1  ·  ┃  ┃  ·  ·  ┊  ·  ┃  ·  ┃  ·
+         0 ┈┈┈┈┃┈┈┃┈┈┈┈┈┈┈┈┊┈┈┈┈┈┃┈┈┈┈┈┃┈┈┈┈
+         1  ·  ┃  ┃  ·  ·  ┊  ·  ┃  ·  ┃  ·
+         2  ·  ┃  ┃  ·  ·  ┊  ·  ┃  ·  ┃  ·
+         3  ·  ┃  ┃  ·  ·  ┊  ·  ┃  ·  ┃  ·
+         4  ·  ◆━━◆━━━━━━━━━━━━━━◆━━━━━◆  ·
          5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
         "###);
     }
