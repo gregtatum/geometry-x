@@ -1,5 +1,5 @@
-#ifndef MyFFIType_H
-#define MyFFIType_H
+#ifndef Mesh_H
+#define Mesh_H
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -10,12 +10,10 @@
 extern "C" {
 #endif
 
-typedef struct MyFFIType {
-    int32_t a;
-} MyFFIType;
+typedef struct Mesh Mesh;
 
-MyFFIType MyFFIType_new();
-void MyFFIType_destroy(MyFFIType* self);
+Mesh* Mesh_new();
+void Mesh_destroy(Mesh* self);
 
 #ifdef __cplusplus
 }
