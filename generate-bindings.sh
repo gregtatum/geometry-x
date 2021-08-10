@@ -3,6 +3,5 @@
 # DIPLOMAT="diplomat-tool"
 DIPLOMAT="../diplomat/target/debug/diplomat-tool"
 
-$DIPLOMAT js js/ js/docs/
-# $DIPLOMAT c c/
-# $DIPLOMAT cpp cpp/ cpp/docs/
+# $DIPLOMAT js js/ --docs js/docs/
+$DIPLOMAT cpp bindings/cpp

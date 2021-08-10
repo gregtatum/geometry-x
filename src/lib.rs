@@ -4,13 +4,14 @@ pub mod quads;
 
 #[diplomat::bridge]
 pub mod ffi {
-    pub struct MyFFIType {
-        pub a: i32,
-    }
+    use super::quads;
 
-    impl MyFFIType {
-        pub fn new() -> MyFFIType {
-            MyFFIType { a: 42 }
+    #[diplomat::opaque]
+    pub struct Mesh(pub quads::QuadMesh);
+
+    impl Mesh {
+        pub fn new() -> Box<Mesh> {
+            Box::new(Mesh(quads::QuadMesh::new()))
         }
     }
 }
