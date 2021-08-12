@@ -52,7 +52,7 @@ pub type CellTuple = (usize, usize, usize, usize);
 /// The list of all cells in the mesh or [simplicial complex](https://en.wikipedia.org/wiki/Simplicial_complex).
 pub type Cells = Vec<Vector4<usize>>;
 
-/// The input options for [`create_single_quad`].
+/// The input options for [`QuadMesh::create_single_quad`].
 pub enum SingleQuadOptions {
     /// Create a quad from a positions tuple.
     ///
@@ -129,7 +129,40 @@ pub enum SingleQuadOptions {
     FromSize((Vector2<f64>, Facing)),
 }
 
-/// A mesh made up of quads.
+/// The quads structure is defined as a mesh. This mesh contains a list of positions in
+/// space, and a list of indexes to define how the quads are to be formed. Different
+/// quads can share the same point, and points can be duplicated but share the same
+/// space.
+///
+/// Normals are optionally computed for the QuadMesh.
+/// ```
+/// # use geometry_x::quads::*;
+/// # use cgmath::*;
+/// # let mut quads = QuadMesh::new();
+/// # quads.create_single_quad(SingleQuadOptions::FromSize((
+/// #     vec2(4.0, 4.0),
+/// #     Facing {
+/// #         axis: Axis::Z,
+/// #         direction: Direction::Positive,
+/// #     },
+/// # )));
+/// quads.assert_art(
+///     Axis::Z, "
+///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
+///     │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+///     │ -4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+///     │ -3  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+///     │ -2  ·  ·  ·  ◆━━━━━━━━━━━◆  ·  ·  ·
+///     │ -1  ·  ·  ·  ┃  ·  ┊  ·  ┃  ·  ·  ·
+///     │  0 ┈┈┈┈┈┈┈┈┈┈┃┈┈┈┈┈┊┈┈┈┈┈┃┈┈┈┈┈┈┈┈┈┈
+///     │  1  ·  ·  ·  ┃  ·  ┊  ·  ┃  ·  ·  ·
+///     │  2  ·  ·  ·  ◆━━━━━━━━━━━◆  ·  ·  ·
+///     │  3  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+///     │  4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+///     │  5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+///     "
+/// );
+/// ```
 #[derive(PartialEq, Debug, Clone)]
 pub struct QuadMesh {
     /// Indexes into the positions array. A single cell represents a single quad.
@@ -174,6 +207,14 @@ impl QuadMesh {
     /// Get a position from the mesh by index.
     pub fn get_position(&self, index: usize) -> QuadResult<&Position> {
         match self.positions.get(index) {
+            Some(position) => Ok(position),
+            None => Err(QuadError::PositionIndexError),
+        }
+    }
+
+    /// Get a mut position from the mesh by index.
+    pub fn get_position_mut(&mut self, index: usize) -> QuadResult<&mut Position> {
+        match self.positions.get_mut(index) {
             Some(position) => Ok(position),
             None => Err(QuadError::PositionIndexError),
         }
@@ -334,7 +375,7 @@ impl QuadMesh {
         edge_a.cross(edge_b).normalize()
     }
 
-    /// Split a cell vertically.
+    /// Split a quad cell vertically.
     ///
     /// ```
     /// # use geometry_x::quads::*;
@@ -373,15 +414,15 @@ impl QuadMesh {
     ///     "
     ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
     ///     │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-    ///     │ -4  ·  ◆━━━━━━━━━━━━━━━━━◆━━━━━◆  ·
-    ///     │ -3  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
-    ///     │ -2  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
-    ///     │ -1  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
-    ///     │  0 ┈┈┈┈┃┈┈┈┈┈┈┈┈┈┈┈┊┈┈┈┈┈┃┈┈┈┈┈┃┈┈┈┈
-    ///     │  1  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
-    ///     │  2  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
-    ///     │  3  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
-    ///     │  4  ·  ◆━━━━━━━━━━━━━━━━━◆━━━━━◆  ·
+    ///     │ -4  ·  ◆━━━━━◆━━━━━━━━━━━━━━━━━◆  ·
+    ///     │ -3  ·  ┃  ·  ┃  ·  ┊  ·  ·  ·  ┃  ·
+    ///     │ -2  ·  ┃  ·  ┃  ·  ┊  ·  ·  ·  ┃  ·
+    ///     │ -1  ·  ┃  ·  ┃  ·  ┊  ·  ·  ·  ┃  ·
+    ///     │  0 ┈┈┈┈┃┈┈┈┈┈┃┈┈┈┈┈┊┈┈┈┈┈┈┈┈┈┈┈┃┈┈┈┈
+    ///     │  1  ·  ┃  ·  ┃  ·  ┊  ·  ·  ·  ┃  ·
+    ///     │  2  ·  ┃  ·  ┃  ·  ┊  ·  ·  ·  ┃  ·
+    ///     │  3  ·  ┃  ·  ┃  ·  ┊  ·  ·  ·  ┃  ·
+    ///     │  4  ·  ◆━━━━━◆━━━━━━━━━━━━━━━━━◆  ·
     ///     │  5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
     ///     "
     /// );
@@ -393,7 +434,7 @@ impl QuadMesh {
         //  a---ad---d
         let (pt_bc, pt_ad) = {
             let (pt_a, pt_b, pt_c, pt_d) = self.get_positions(self.get_cell(cell_index)?);
-            (pt_b.lerp(*pt_c, t), pt_a.lerp(*pt_d, t))
+            (pt_c.lerp(*pt_b, t), pt_d.lerp(*pt_a, t))
         };
         let bc = self.positions.len();
         self.positions.push(pt_bc);
@@ -409,6 +450,247 @@ impl QuadMesh {
         cell.w = ad;
         Ok(())
     }
+
+    /// Split a quad cell horizontally.
+    ///
+    /// ```
+    /// # use geometry_x::quads::*;
+    /// # use cgmath::*;
+    /// let mut quads = QuadMesh::new();
+    /// quads.create_single_quad(SingleQuadOptions::FromSize((
+    ///     vec2(8.0, 8.0),
+    ///     Facing {
+    ///         axis: Axis::Z,
+    ///         direction: Direction::Positive,
+    ///     },
+    /// )));
+    ///
+    /// quads.assert_art(
+    ///     Axis::Z, "
+    ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
+    ///     │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │ -4  ·  ◆━━━━━━━━━━━━━━━━━━━━━━━◆  ·
+    ///     │ -3  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+    ///     │ -2  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+    ///     │ -1  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+    ///     │  0 ┈┈┈┈┃┈┈┈┈┈┈┈┈┈┈┈┊┈┈┈┈┈┈┈┈┈┈┈┃┈┈┈┈
+    ///     │  1  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+    ///     │  2  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+    ///     │  3  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+    ///     │  4  ·  ◆━━━━━━━━━━━━━━━━━━━━━━━◆  ·
+    ///     │  5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     "
+    /// );
+    ///
+    /// let cell_a = quads.cells.len() - 1;
+    /// quads.split_horizontal(cell_a, 0.2).unwrap();
+    ///
+    /// quads.assert_art(
+    ///     Axis::Z,
+    ///     "
+    ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
+    ///     │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │ -4  ·  ◆━━━━━━━━━━━━━━━━━━━━━━━◆  ·
+    ///     │ -3  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+    ///     │ -2  ·  ◆━━━━━━━━━━━━━━━━━━━━━━━◆  ·
+    ///     │ -1  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+    ///     │  0 ┈┈┈┈┃┈┈┈┈┈┈┈┈┈┈┈┊┈┈┈┈┈┈┈┈┈┈┈┃┈┈┈┈
+    ///     │  1  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+    ///     │  2  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+    ///     │  3  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+    ///     │  4  ·  ◆━━━━━━━━━━━━━━━━━━━━━━━◆  ·
+    ///     │  5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     "
+    /// );
+    /// ```
+    pub fn split_horizontal(&mut self, cell_index: usize, t: f64) -> QuadResult<()> {
+        //  b--------c
+        //  |        |
+        //  ab------cd
+        //  |        |
+        //  a--------d
+        let (pt_ab, pt_cd) = {
+            let (pt_a, pt_b, pt_c, pt_d) = self.get_positions(self.get_cell(cell_index)?);
+            (pt_a.lerp(*pt_b, t), pt_d.lerp(*pt_c, t))
+        };
+        let ab = self.positions.len();
+        self.positions.push(pt_ab);
+
+        let cd = self.positions.len();
+        self.positions.push(pt_cd);
+
+        let (_a, b, c, _d) = self.get_cell_tuple(cell_index)?;
+        self.cells.push(vec4(ab, b, c, cd));
+
+        let mut cell = self.get_cell_mut(cell_index)?;
+        cell.y = ab;
+        cell.z = cd;
+        Ok(())
+    }
+
+    /// Split a quad cell horizontally, but disjoint. This will ensure the new quad
+    /// cell has its own positions.
+    ///
+    /// ```
+    /// # use geometry_x::quads::*;
+    /// # use cgmath::*;
+    /// let mut quads = QuadMesh::new();
+    /// quads.create_single_quad(SingleQuadOptions::FromSize((
+    ///     vec2(6.0, 6.0),
+    ///     Facing {
+    ///         axis: Axis::Z,
+    ///         direction: Direction::Positive,
+    ///     },
+    /// )));
+    ///
+    /// quads.assert_art(
+    ///     Axis::Z, "
+    ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
+    ///     │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │ -4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │ -3  ·  ·  ◆━━━━━━━━━━━━━━━━━◆  ·  ·
+    ///     │ -2  ·  ·  ┃  ·  ·  ┊  ·  ·  ┃  ·  ·
+    ///     │ -1  ·  ·  ┃  ·  ·  ┊  ·  ·  ┃  ·  ·
+    ///     │  0 ┈┈┈┈┈┈┈┃┈┈┈┈┈┈┈┈┊┈┈┈┈┈┈┈┈┃┈┈┈┈┈┈┈
+    ///     │  1  ·  ·  ┃  ·  ·  ┊  ·  ·  ┃  ·  ·
+    ///     │  2  ·  ·  ┃  ·  ·  ┊  ·  ·  ┃  ·  ·
+    ///     │  3  ·  ·  ◆━━━━━━━━━━━━━━━━━◆  ·  ·
+    ///     │  4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │  5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     "
+    /// );
+    ///
+    /// let cell_a = quads.cells.len() - 1;
+    /// quads.split_horizontal_disjoint(cell_a, 0.2).unwrap();
+    ///
+    /// quads.assert_art(
+    ///     Axis::Z,
+    ///     "
+    ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
+    ///     │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │ -4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │ -3  ·  ·  ◆━━━━━━━━━━━━━━━━━◆  ·  ·
+    ///     │ -2  ·  ·  ┃  ·  ·  ┊  ·  ·  ┃  ·  ·
+    ///     │ -1  ·  ·  ◆━━━━━━━━━━━━━━━━━◆  ·  ·
+    ///     │  0 ┈┈┈┈┈┈┈┃┈┈┈┈┈┈┈┈┊┈┈┈┈┈┈┈┈┃┈┈┈┈┈┈┈
+    ///     │  1  ·  ·  ┃  ·  ·  ┊  ·  ·  ┃  ·  ·
+    ///     │  2  ·  ·  ┃  ·  ·  ┊  ·  ·  ┃  ·  ·
+    ///     │  3  ·  ·  ◆━━━━━━━━━━━━━━━━━◆  ·  ·
+    ///     │  4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │  5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     "
+    /// );
+    ///
+    /// quads.translate(cell_a, vec3(-1.0, -2.0, 0.0)).expect("Failed to translate.");
+    ///
+    /// quads.assert_art(
+    ///     Axis::Z,
+    ///     "
+    ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
+    ///     │ -5  ·  ◆━━━━━━━━━━━━━━━━━◆  ·  ·  ·
+    ///     │ -4  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ·  ·
+    ///     │ -3  ·  ◆━━━━━━━━━━━━━━━━━◆  ·  ·  ·
+    ///     │ -2  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │ -1  ·  ·  ◆━━━━━━━━━━━━━━━━━◆  ·  ·
+    ///     │  0 ┈┈┈┈┈┈┈┃┈┈┈┈┈┈┈┈┊┈┈┈┈┈┈┈┈┃┈┈┈┈┈┈┈
+    ///     │  1  ·  ·  ┃  ·  ·  ┊  ·  ·  ┃  ·  ·
+    ///     │  2  ·  ·  ┃  ·  ·  ┊  ·  ·  ┃  ·  ·
+    ///     │  3  ·  ·  ◆━━━━━━━━━━━━━━━━━◆  ·  ·
+    ///     │  4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │  5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     "
+    /// );
+    /// ```
+    pub fn split_horizontal_disjoint(&mut self, cell_index: usize, t: f64) -> QuadResult<()> {
+        //  b--------c
+        //  |        |
+        //  ab1----cd1
+        //  ab2----cd2
+        //  | target |
+        //  a--------d
+        let (pt_ab, pt_cd) = {
+            let (pt_a, pt_b, pt_c, pt_d) = self.get_positions(self.get_cell(cell_index)?);
+            (pt_a.lerp(*pt_b, t), pt_d.lerp(*pt_c, t))
+        };
+        let ab1 = self.positions.len();
+        self.positions.push(pt_ab);
+        let ab2 = self.positions.len();
+        self.positions.push(pt_ab);
+
+        let cd1 = self.positions.len();
+        self.positions.push(pt_cd);
+        let cd2 = self.positions.len();
+        self.positions.push(pt_cd);
+
+        let (a, b, c, d) = self.get_cell_tuple(cell_index)?;
+        self.cells.push(vec4(ab2, b, c, cd2));
+
+        let mut cell = self.get_cell_mut(cell_index)?;
+        cell.y = ab1;
+        cell.z = cd1;
+        Ok(())
+    }
+
+    /// Translate a single quad cell by a vector.
+    ///
+    /// ```
+    /// # use geometry_x::quads::*;
+    /// # use cgmath::*;
+    /// # let mut quads = QuadMesh::new();
+    /// # quads.create_single_quad(SingleQuadOptions::FromSize((
+    /// #     vec2(2.0, 2.0),
+    /// #     Facing {
+    /// #         axis: Axis::Z,
+    /// #         direction: Direction::Positive,
+    /// #     },
+    /// # )));
+    /// quads.assert_art(
+    ///     Axis::Z, "
+    ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
+    ///     │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │ -4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │ -3  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │ -2  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │ -1  ·  ·  ·  ·  ◆━━━━━◆  ·  ·  ·  ·
+    ///     │  0 ┈┈┈┈┈┈┈┈┈┈┈┈┈┃┈┈┊┈┈┃┈┈┈┈┈┈┈┈┈┈┈┈┈
+    ///     │  1  ·  ·  ·  ·  ◆━━━━━◆  ·  ·  ·  ·
+    ///     │  2  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │  3  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │  4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │  5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     "
+    /// );
+    ///
+    /// let cell = quads.cells.len() - 1;
+    ///
+    /// quads.translate(cell, vec3(2.0, 4.0, 0.0)).expect("Failed to translate.");
+    ///
+    /// quads.assert_art(
+    ///     Axis::Z,
+    ///     "
+    ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
+    ///     │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │ -4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │ -3  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │ -2  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │ -1  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │  0 ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┊┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
+    ///     │  1  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │  2  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │  3  ·  ·  ·  ·  ·  ┊  ◆━━━━━◆  ·  ·
+    ///     │  4  ·  ·  ·  ·  ·  ┊  ┃  ·  ┃  ·  ·
+    ///     │  5  ·  ·  ·  ·  ·  ┊  ◆━━━━━◆  ·  ·
+    ///     "
+    /// );
+    /// ```
+    pub fn translate(&mut self, cell_index: usize, translate: Vector3<f64>) -> QuadResult<()> {
+        let (a, b, c, d) = self.get_cell_tuple(cell_index)?;
+        *(self.get_position_mut(a))? += translate;
+        *(self.get_position_mut(b))? += translate;
+        *(self.get_position_mut(c))? += translate;
+        *(self.get_position_mut(d))? += translate;
+        Ok(())
+    }
 }
 
 impl Default for QuadMesh {
@@ -417,7 +699,7 @@ impl Default for QuadMesh {
     }
 }
 
-/// A trait to draw some piece of geometry using text art. See https://gregtatum.com/writing/2020/ascii-physics-system/
+/// A trait to draw some piece of geometry using text art. See <https://gregtatum.com/writing/2020/ascii-physics-system/>
 pub trait TextArt {
     /// Given a geometry type and an axis, draw it using text and an orthogonal
     /// projection.
@@ -482,7 +764,7 @@ fn replace_codepoint(str: &mut String, replacement: &str, index: usize) {
 }
 
 impl TextArt for QuadMesh {
-    /// Draw a [QuadMesh] using text art. See https://gregtatum.com/writing/2020/ascii-physics-system/
+    /// Draw a [QuadMesh] using text art. See <https://gregtatum.com/writing/2020/ascii-physics-system/>
     fn as_text_art(&self, axis: Axis) -> String {
         let x_margin = 6;
         let y_margin = 1;
@@ -702,82 +984,6 @@ mod test {
             │  2  ·  ┃  ·  ·  ·  ┊  ┃  ·  ·  ·  ·
             │  3  ·  ◆━━━━━━━━━━━━━━◆  ·  ·  ·  ·
             │  4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-            │  5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-            ",
-        );
-    }
-
-    #[test]
-    fn test_split_vertically() {
-        let mut quads = QuadMesh::new();
-        quads.create_single_quad(SingleQuadOptions::FromSize((
-            vec2(8.0, 8.0),
-            Facing {
-                axis: Axis::Z,
-                direction: Direction::Positive,
-            },
-        )));
-
-        quads.assert_art(
-            Axis::Z,
-            "
-            │    -5 -4 -3 -2 -1  0  1  2  3  4  5
-            │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-            │ -4  ·  ◆━━━━━━━━━━━━━━━━━━━━━━━◆  ·
-            │ -3  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
-            │ -2  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
-            │ -1  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
-            │  0 ┈┈┈┈┃┈┈┈┈┈┈┈┈┈┈┈┊┈┈┈┈┈┈┈┈┈┈┈┃┈┈┈┈
-            │  1  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
-            │  2  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
-            │  3  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
-            │  4  ·  ◆━━━━━━━━━━━━━━━━━━━━━━━◆  ·
-            │  5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-            ",
-        );
-
-        let cell_a = quads.cells.len() - 1;
-        quads
-            .split_vertical(cell_a, 0.2)
-            .expect("Unable to split cells.");
-
-        quads.assert_art(
-            Axis::Z,
-            "
-            │    -5 -4 -3 -2 -1  0  1  2  3  4  5
-            │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-            │ -4  ·  ◆━━━━━━━━━━━━━━━━━◆━━━━━◆  ·
-            │ -3  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
-            │ -2  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
-            │ -1  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
-            │  0 ┈┈┈┈┃┈┈┈┈┈┈┈┈┈┈┈┊┈┈┈┈┈┃┈┈┈┈┈┃┈┈┈┈
-            │  1  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
-            │  2  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
-            │  3  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
-            │  4  ·  ◆━━━━━━━━━━━━━━━━━◆━━━━━◆  ·
-            │  5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-            ",
-        );
-
-        let cell_b = quads.cells.len() - 1;
-        quads
-            .split_vertical(cell_b, 0.9)
-            .expect("Unable to split cells.");
-
-        quads.assert_art(
-            Axis::Z,
-            "
-            │    -5 -4 -3 -2 -1  0  1  2  3  4  5
-            │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-            │ -4  ·  ◆━━◆━━━━━━━━━━━━━━◆━━━━━◆  ·
-            │ -3  ·  ┃  ┃  ·  ·  ┊  ·  ┃  ·  ┃  ·
-            │ -2  ·  ┃  ┃  ·  ·  ┊  ·  ┃  ·  ┃  ·
-            │ -1  ·  ┃  ┃  ·  ·  ┊  ·  ┃  ·  ┃  ·
-            │  0 ┈┈┈┈┃┈┈┃┈┈┈┈┈┈┈┈┊┈┈┈┈┈┃┈┈┈┈┈┃┈┈┈┈
-            │  1  ·  ┃  ┃  ·  ·  ┊  ·  ┃  ·  ┃  ·
-            │  2  ·  ┃  ┃  ·  ·  ┊  ·  ┃  ·  ┃  ·
-            │  3  ·  ┃  ┃  ·  ·  ┊  ·  ┃  ·  ┃  ·
-            │  4  ·  ◆━━◆━━━━━━━━━━━━━━◆━━━━━◆  ·
             │  5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
             ",
         );
