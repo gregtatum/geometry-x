@@ -37,20 +37,20 @@ pub struct Facing {
     pub direction: Direction,
 }
 
-/// A single position in a mesh. It can be indexed by multiple cells.
+/// A single position in a mesh. It can be indexed by multiple quads.
 pub type Position = Vector3<f64>;
 /// A normal for a mesh.
 pub type Normal = Vector3<f64>;
-/// The collection of [Position]s that are indexed by [Cells].
+/// The collection of [Position]s that are indexed by [Quad]s.
 pub type Positions = Vec<Position>;
 /// The collection of [Normal]s that match the indexes of the [Positions].
 pub type Normals = Vec<Normal>;
-/// A single cell in a [simplicial complex](https://en.wikipedia.org/wiki/Simplicial_complex).
-pub type Cell = Vector4<usize>;
+/// A single quad that references the positions.
+pub type Quad = Vector4<usize>;
 /// A convience for destructuring.
-pub type CellTuple = (usize, usize, usize, usize);
-/// The list of all cells in the mesh or [simplicial complex](https://en.wikipedia.org/wiki/Simplicial_complex).
-pub type Cells = Vec<Vector4<usize>>;
+pub type QuadTuple = (usize, usize, usize, usize);
+/// The list of all quads in the mesh.
+pub type Quads = Vec<Vector4<usize>>;
 
 /// The input options for [`QuadMesh::create_single_quad`].
 pub enum SingleQuadOptions {
@@ -61,8 +61,8 @@ pub enum SingleQuadOptions {
     /// ```
     /// # use cgmath::*;
     /// # use geometry_x::quads::*;
-    /// let mut quads = QuadMesh::new();
-    /// quads.create_single_quad(
+    /// let mut mesh = QuadMesh::new();
+    /// mesh.create_single_quad(
     ///     SingleQuadOptions::FromPositions((
     ///         vec3(-4.0, 0.0, -3.0),
     ///         vec3(-4.0, 0.0, 3.0),
@@ -71,7 +71,7 @@ pub enum SingleQuadOptions {
     ///     )),
     /// );
     ///
-    /// quads.assert_art(
+    /// mesh.assert_art(
     ///     Axis::Y,
     ///     "
     ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
@@ -97,8 +97,8 @@ pub enum SingleQuadOptions {
     /// ```
     /// # use cgmath::*;
     /// # use geometry_x::quads::*;
-    /// let mut quads = QuadMesh::new();
-    /// quads.create_single_quad(
+    /// let mut mesh = QuadMesh::new();
+    /// mesh.create_single_quad(
     ///     SingleQuadOptions::FromSize((
     ///         vec2(2.0, 4.0),
     ///         Facing {
@@ -108,7 +108,7 @@ pub enum SingleQuadOptions {
     ///     )),
     /// );
     ///
-    /// quads.assert_art(
+    /// mesh.assert_art(
     ///     Axis::Z,
     ///     "
     ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
@@ -138,15 +138,15 @@ pub enum SingleQuadOptions {
 /// ```
 /// # use geometry_x::quads::*;
 /// # use cgmath::*;
-/// # let mut quads = QuadMesh::new();
-/// # quads.create_single_quad(SingleQuadOptions::FromSize((
+/// # let mut mesh = QuadMesh::new();
+/// # mesh.create_single_quad(SingleQuadOptions::FromSize((
 /// #     vec2(4.0, 4.0),
 /// #     Facing {
 /// #         axis: Axis::Z,
 /// #         direction: Direction::Positive,
 /// #     },
 /// # )));
-/// quads.assert_art(
+/// mesh.assert_art(
 ///     Axis::Z, "
 ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
 ///     │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
@@ -165,8 +165,8 @@ pub enum SingleQuadOptions {
 /// ```
 #[derive(PartialEq, Debug, Clone)]
 pub struct QuadMesh {
-    /// Indexes into the positions array. A single cell represents a single quad.
-    pub cells: Cells,
+    /// Indexes into the positions array. A single quad represents a single quad.
+    pub quads: Quads,
     /// The positions in an unordered Vector.
     pub positions: Positions,
     /// The computed normals for a quad mesh.
@@ -178,8 +178,8 @@ pub struct QuadMesh {
 pub enum QuadError {
     /// A position was not found for a given index.
     PositionIndexError,
-    /// A cell was not found for a given index.
-    CellIndexError,
+    /// A quad was not found for a given index.
+    QuadIndexError,
 }
 
 /// A [Result] with the [QuadError] applied.
@@ -189,7 +189,7 @@ impl QuadMesh {
     /// Create a new [QuadMesh] with no normals.
     pub fn new() -> QuadMesh {
         QuadMesh {
-            cells: vec![],
+            quads: vec![],
             positions: vec![],
             normals: None,
         }
@@ -198,7 +198,7 @@ impl QuadMesh {
     /// Create a new [QuadMesh] with normals.
     pub fn new_with_normals() -> QuadMesh {
         QuadMesh {
-            cells: vec![],
+            quads: vec![],
             positions: vec![],
             normals: Some(vec![]),
         }
@@ -225,58 +225,58 @@ impl QuadMesh {
         self.get_position(index).map(|p| *p)
     }
 
-    /// Get a [Cell] from the mesh by index.
-    pub fn get_cell(&self, index: usize) -> QuadResult<&Cell> {
-        match self.cells.get(index) {
-            Some(cell) => Ok(cell),
-            None => Err(QuadError::CellIndexError),
+    /// Get a [Quad] from the mesh by index.
+    pub fn get_quad(&self, index: usize) -> QuadResult<&Quad> {
+        match self.quads.get(index) {
+            Some(quad) => Ok(quad),
+            None => Err(QuadError::QuadIndexError),
         }
     }
 
-    /// Get a mutable [Cell] from the mesh by index.
-    pub fn get_cell_mut(&mut self, index: usize) -> QuadResult<&mut Cell> {
-        match self.cells.get_mut(index) {
-            Some(cell) => Ok(cell),
-            None => Err(QuadError::CellIndexError),
+    /// Get a mutable [Quad] from the mesh by index.
+    pub fn get_quad_mut(&mut self, index: usize) -> QuadResult<&mut Quad> {
+        match self.quads.get_mut(index) {
+            Some(quad) => Ok(quad),
+            None => Err(QuadError::QuadIndexError),
         }
     }
 
     /// Get a clone of a position based on its index.
-    pub fn clone_cell(&self, index: usize) -> QuadResult<Cell> {
-        self.get_cell(index).map(|c| *c)
+    pub fn clone_quad(&self, index: usize) -> QuadResult<Quad> {
+        self.get_quad(index).map(|c| *c)
     }
 
-    // Get an easy to destructure cell.
-    fn get_cell_tuple(&self, index: usize) -> QuadResult<CellTuple> {
-        self.get_cell(index).map(|c| (*c).into())
+    // Get an easy to destructure quad.
+    fn get_quad_tuple(&self, index: usize) -> QuadResult<QuadTuple> {
+        self.get_quad(index).map(|c| (*c).into())
     }
 
-    /// Given a [Cell], look up a [Position]s tuple.
-    pub fn get_positions(&self, cell: &Cell) -> (&Position, &Position, &Position, &Position) {
+    /// Given a [Quad], look up a [Position]s tuple.
+    pub fn get_positions(&self, quad: &Quad) -> (&Position, &Position, &Position, &Position) {
         (
             self.positions
-                .get(cell.x)
-                .expect("Unable to find position from cell"),
+                .get(quad.x)
+                .expect("Unable to find position from quad"),
             self.positions
-                .get(cell.y)
-                .expect("Unable to find position from cell"),
+                .get(quad.y)
+                .expect("Unable to find position from quad"),
             self.positions
-                .get(cell.z)
-                .expect("Unable to find position from cell"),
+                .get(quad.z)
+                .expect("Unable to find position from quad"),
             self.positions
-                .get(cell.w)
-                .expect("Unable to find position from cell"),
+                .get(quad.w)
+                .expect("Unable to find position from quad"),
         )
     }
 
-    /// Iterate through the cells.
+    /// Iterate through the quads.
     ///
     /// ```
     /// # use geometry_x::quads::*;
     /// # use cgmath::*;
-    /// let mut quads = QuadMesh::new();
+    /// let mut mesh = QuadMesh::new();
     ///
-    /// quads.create_single_quad(
+    /// mesh.create_single_quad(
     ///     SingleQuadOptions::FromSize((
     ///         vec2(2.0, 4.0),
     ///         Facing {
@@ -286,16 +286,16 @@ impl QuadMesh {
     ///     )),
     /// );
     ///
-    /// for cell in quads.iter_cells() {
-    ///    let (a, b, c, d) = quads.get_positions(&cell);
+    /// for quad in mesh.iter_quads() {
+    ///    let (a, b, c, d) = mesh.get_positions(&quad);
     ///    assert_eq!(a, &Vector3::new(1.0, -2.0, 0.0));
     ///    assert_eq!(b, &Vector3::new(1.0, 2.0, 0.0));
     ///    assert_eq!(c, &Vector3::new(-1.0, 2.0, 0.0));
     ///    assert_eq!(d, &Vector3::new(-1.0, -2.0, 0.0));
     /// }
     /// ```
-    pub fn iter_cells(&self) -> impl Iterator<Item = &Cell> {
-        self.cells.iter()
+    pub fn iter_quads(&self) -> impl Iterator<Item = &Quad> {
+        self.quads.iter()
     }
 
     /// See [SingleQuadOptions] for different inputs for creating a single quad inside
@@ -317,7 +317,7 @@ impl QuadMesh {
     /// ```
     pub fn create_single_quad(&mut self, options: SingleQuadOptions) {
         let mut positions = &mut self.positions;
-        let cell = Vector4::new(
+        let quad = Vector4::new(
             positions.len(),
             positions.len() + 1,
             positions.len() + 2,
@@ -356,32 +356,32 @@ impl QuadMesh {
             }
         };
 
-        self.cells.push(cell);
+        self.quads.push(quad);
         let mut normals = vec![];
-        let normal = self.get_cell_normal(&cell);
+        let normal = self.get_normal(&quad);
         normals.push(normal);
         normals.push(normal);
         normals.push(normal);
         normals.push(normal);
     }
 
-    /// Compute a cell's normal regardless of it's neighboring cells.
-    pub fn get_cell_normal(&self, cell: &Cell) -> Normal {
-        let position_a = self.positions.get(cell.x).expect("Unable to find position");
-        let position_b = self.positions.get(cell.y).expect("Unable to find position");
-        let position_c = self.positions.get(cell.z).expect("Unable to find position");
+    /// Compute a quad's normal regardless of it's neighboring quads.
+    pub fn get_normal(&self, quad: &Quad) -> Normal {
+        let position_a = self.positions.get(quad.x).expect("Unable to find position");
+        let position_b = self.positions.get(quad.y).expect("Unable to find position");
+        let position_c = self.positions.get(quad.z).expect("Unable to find position");
         let edge_a = position_b - position_a;
         let edge_b = position_c - position_b;
         edge_a.cross(edge_b).normalize()
     }
 
-    /// Split a quad cell vertically.
+    /// Split a quad quad vertically.
     ///
     /// ```
     /// # use geometry_x::quads::*;
     /// # use cgmath::*;
-    /// let mut quads = QuadMesh::new();
-    /// quads.create_single_quad(SingleQuadOptions::FromSize((
+    /// let mut mesh = QuadMesh::new();
+    /// mesh.create_single_quad(SingleQuadOptions::FromSize((
     ///     vec2(8.0, 8.0),
     ///     Facing {
     ///         axis: Axis::Z,
@@ -389,7 +389,7 @@ impl QuadMesh {
     ///     },
     /// )));
     ///
-    /// quads.assert_art(
+    /// mesh.assert_art(
     ///     Axis::Z, "
     ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
     ///     │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
@@ -406,10 +406,10 @@ impl QuadMesh {
     ///     "
     /// );
     ///
-    /// let cell_a = quads.cells.len() - 1;
-    /// quads.split_vertical(cell_a, 0.2).unwrap();
+    /// let quad_a = mesh.quads.len() - 1;
+    /// mesh.split_vertical(quad_a, 0.2).unwrap();
     ///
-    /// quads.assert_art(
+    /// mesh.assert_art(
     ///     Axis::Z,
     ///     "
     ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
@@ -427,13 +427,13 @@ impl QuadMesh {
     ///     "
     /// );
     /// ```
-    pub fn split_vertical(&mut self, cell_index: usize, t: f64) -> QuadResult<()> {
+    pub fn split_vertical(&mut self, quad_index: usize, t: f64) -> QuadResult<()> {
         //  b---bc---c
         //  |   |    |
         //  |   |    |
         //  a---ad---d
         let (pt_bc, pt_ad) = {
-            let (pt_a, pt_b, pt_c, pt_d) = self.get_positions(self.get_cell(cell_index)?);
+            let (pt_a, pt_b, pt_c, pt_d) = self.get_positions(self.get_quad(quad_index)?);
             (pt_c.lerp(*pt_b, t), pt_d.lerp(*pt_a, t))
         };
         let bc = self.positions.len();
@@ -442,22 +442,22 @@ impl QuadMesh {
         let ad = self.positions.len();
         self.positions.push(pt_ad);
 
-        let (_a, _b, c, d) = self.get_cell_tuple(cell_index)?;
-        self.cells.push(vec4(ad, bc, c, d));
+        let (_a, _b, c, d) = self.get_quad_tuple(quad_index)?;
+        self.quads.push(vec4(ad, bc, c, d));
 
-        let mut cell = self.get_cell_mut(cell_index)?;
-        cell.z = bc;
-        cell.w = ad;
+        let mut quad = self.get_quad_mut(quad_index)?;
+        quad.z = bc;
+        quad.w = ad;
         Ok(())
     }
 
-    /// Split a quad cell horizontally.
+    /// Split a quad quad horizontally.
     ///
     /// ```
     /// # use geometry_x::quads::*;
     /// # use cgmath::*;
-    /// let mut quads = QuadMesh::new();
-    /// quads.create_single_quad(SingleQuadOptions::FromSize((
+    /// let mut mesh = QuadMesh::new();
+    /// mesh.create_single_quad(SingleQuadOptions::FromSize((
     ///     vec2(8.0, 8.0),
     ///     Facing {
     ///         axis: Axis::Z,
@@ -465,7 +465,7 @@ impl QuadMesh {
     ///     },
     /// )));
     ///
-    /// quads.assert_art(
+    /// mesh.assert_art(
     ///     Axis::Z, "
     ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
     ///     │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
@@ -482,10 +482,10 @@ impl QuadMesh {
     ///     "
     /// );
     ///
-    /// let cell_a = quads.cells.len() - 1;
-    /// quads.split_horizontal(cell_a, 0.2).unwrap();
+    /// let quad_a = mesh.quads.len() - 1;
+    /// mesh.split_horizontal(quad_a, 0.2).unwrap();
     ///
-    /// quads.assert_art(
+    /// mesh.assert_art(
     ///     Axis::Z,
     ///     "
     ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
@@ -503,14 +503,14 @@ impl QuadMesh {
     ///     "
     /// );
     /// ```
-    pub fn split_horizontal(&mut self, cell_index: usize, t: f64) -> QuadResult<()> {
+    pub fn split_horizontal(&mut self, quad_index: usize, t: f64) -> QuadResult<()> {
         //  b--------c
         //  |        |
         //  ab------cd
         //  |        |
         //  a--------d
         let (pt_ab, pt_cd) = {
-            let (pt_a, pt_b, pt_c, pt_d) = self.get_positions(self.get_cell(cell_index)?);
+            let (pt_a, pt_b, pt_c, pt_d) = self.get_positions(self.get_quad(quad_index)?);
             (pt_a.lerp(*pt_b, t), pt_d.lerp(*pt_c, t))
         };
         let ab = self.positions.len();
@@ -519,23 +519,23 @@ impl QuadMesh {
         let cd = self.positions.len();
         self.positions.push(pt_cd);
 
-        let (_a, b, c, _d) = self.get_cell_tuple(cell_index)?;
-        self.cells.push(vec4(ab, b, c, cd));
+        let (_a, b, c, _d) = self.get_quad_tuple(quad_index)?;
+        self.quads.push(vec4(ab, b, c, cd));
 
-        let mut cell = self.get_cell_mut(cell_index)?;
-        cell.y = ab;
-        cell.z = cd;
+        let mut quad = self.get_quad_mut(quad_index)?;
+        quad.y = ab;
+        quad.z = cd;
         Ok(())
     }
 
-    /// Split a quad cell horizontally, but disjoint. This will ensure the new quad
-    /// cell has its own positions.
+    /// Split a quad quad horizontally, but disjoint. This will ensure the new quad
+    /// quad has its own positions.
     ///
     /// ```
     /// # use geometry_x::quads::*;
     /// # use cgmath::*;
-    /// let mut quads = QuadMesh::new();
-    /// quads.create_single_quad(SingleQuadOptions::FromSize((
+    /// let mut mesh = QuadMesh::new();
+    /// mesh.create_single_quad(SingleQuadOptions::FromSize((
     ///     vec2(6.0, 6.0),
     ///     Facing {
     ///         axis: Axis::Z,
@@ -543,7 +543,7 @@ impl QuadMesh {
     ///     },
     /// )));
     ///
-    /// quads.assert_art(
+    /// mesh.assert_art(
     ///     Axis::Z, "
     ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
     ///     │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
@@ -560,10 +560,10 @@ impl QuadMesh {
     ///     "
     /// );
     ///
-    /// let cell_a = quads.cells.len() - 1;
-    /// quads.split_horizontal_disjoint(cell_a, 0.2).unwrap();
+    /// let quad_a = mesh.quads.len() - 1;
+    /// mesh.split_horizontal_disjoint(quad_a, 0.2).unwrap();
     ///
-    /// quads.assert_art(
+    /// mesh.assert_art(
     ///     Axis::Z,
     ///     "
     ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
@@ -581,9 +581,9 @@ impl QuadMesh {
     ///     "
     /// );
     ///
-    /// quads.translate(cell_a, vec3(-1.0, -2.0, 0.0)).expect("Failed to translate.");
+    /// mesh.translate(quad_a, vec3(-1.0, -2.0, 0.0)).expect("Failed to translate.");
     ///
-    /// quads.assert_art(
+    /// mesh.assert_art(
     ///     Axis::Z,
     ///     "
     ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
@@ -601,7 +601,7 @@ impl QuadMesh {
     ///     "
     /// );
     /// ```
-    pub fn split_horizontal_disjoint(&mut self, cell_index: usize, t: f64) -> QuadResult<()> {
+    pub fn split_horizontal_disjoint(&mut self, quad_index: usize, t: f64) -> QuadResult<()> {
         //  b--------c
         //  |        |
         //  ab1----cd1
@@ -609,7 +609,7 @@ impl QuadMesh {
         //  | target |
         //  a--------d
         let (pt_ab, pt_cd) = {
-            let (pt_a, pt_b, pt_c, pt_d) = self.get_positions(self.get_cell(cell_index)?);
+            let (pt_a, pt_b, pt_c, pt_d) = self.get_positions(self.get_quad(quad_index)?);
             (pt_a.lerp(*pt_b, t), pt_d.lerp(*pt_c, t))
         };
         let ab1 = self.positions.len();
@@ -622,29 +622,29 @@ impl QuadMesh {
         let cd2 = self.positions.len();
         self.positions.push(pt_cd);
 
-        let (a, b, c, d) = self.get_cell_tuple(cell_index)?;
-        self.cells.push(vec4(ab2, b, c, cd2));
+        let (a, b, c, d) = self.get_quad_tuple(quad_index)?;
+        self.quads.push(vec4(ab2, b, c, cd2));
 
-        let mut cell = self.get_cell_mut(cell_index)?;
-        cell.y = ab1;
-        cell.z = cd1;
+        let mut quad = self.get_quad_mut(quad_index)?;
+        quad.y = ab1;
+        quad.z = cd1;
         Ok(())
     }
 
-    /// Translate a single quad cell by a vector.
+    /// Translate a single quad quad by a vector.
     ///
     /// ```
     /// # use geometry_x::quads::*;
     /// # use cgmath::*;
-    /// # let mut quads = QuadMesh::new();
-    /// # quads.create_single_quad(SingleQuadOptions::FromSize((
+    /// # let mut mesh = QuadMesh::new();
+    /// # mesh.create_single_quad(SingleQuadOptions::FromSize((
     /// #     vec2(2.0, 2.0),
     /// #     Facing {
     /// #         axis: Axis::Z,
     /// #         direction: Direction::Positive,
     /// #     },
     /// # )));
-    /// quads.assert_art(
+    /// mesh.assert_art(
     ///     Axis::Z, "
     ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
     ///     │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
@@ -661,11 +661,11 @@ impl QuadMesh {
     ///     "
     /// );
     ///
-    /// let cell = quads.cells.len() - 1;
+    /// let quad = mesh.quads.len() - 1;
     ///
-    /// quads.translate(cell, vec3(2.0, 4.0, 0.0)).expect("Failed to translate.");
+    /// mesh.translate(quad, vec3(2.0, 4.0, 0.0)).expect("Failed to translate.");
     ///
-    /// quads.assert_art(
+    /// mesh.assert_art(
     ///     Axis::Z,
     ///     "
     ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
@@ -683,8 +683,8 @@ impl QuadMesh {
     ///     "
     /// );
     /// ```
-    pub fn translate(&mut self, cell_index: usize, translate: Vector3<f64>) -> QuadResult<()> {
-        let (a, b, c, d) = self.get_cell_tuple(cell_index)?;
+    pub fn translate(&mut self, quad_index: usize, translate: Vector3<f64>) -> QuadResult<()> {
+        let (a, b, c, d) = self.get_quad_tuple(quad_index)?;
         *(self.get_position_mut(a))? += translate;
         *(self.get_position_mut(b))? += translate;
         *(self.get_position_mut(c))? += translate;
@@ -772,8 +772,8 @@ impl TextArt for QuadMesh {
         let half_w: usize = 5;
         let half_h: usize = 5;
         let mut lines = get_grid(half_w, half_h);
-        for cell in self.iter_cells() {
-            let (a, b, c, d) = self.get_positions(cell);
+        for quad in self.iter_quads() {
+            let (a, b, c, d) = self.get_positions(quad);
 
             let mut translate = |px: f64, py: f64| -> (usize, usize) {
                 (
@@ -932,8 +932,8 @@ mod test {
 
     #[test]
     fn test_create_quad_from_size() {
-        let mut quads = QuadMesh::new();
-        quads.create_single_quad(SingleQuadOptions::FromSize((
+        let mut mesh = QuadMesh::new();
+        mesh.create_single_quad(SingleQuadOptions::FromSize((
             vec2(2.0, 4.0),
             Facing {
                 axis: Axis::Z,
@@ -941,7 +941,7 @@ mod test {
             },
         )));
 
-        quads.assert_art(
+        mesh.assert_art(
             Axis::Z,
             "
             │    -5 -4 -3 -2 -1  0  1  2  3  4  5
@@ -962,15 +962,15 @@ mod test {
 
     #[test]
     fn test_create_quad_positions() {
-        let mut quads = QuadMesh::new();
-        quads.create_single_quad(SingleQuadOptions::FromPositions((
+        let mut mesh = QuadMesh::new();
+        mesh.create_single_quad(SingleQuadOptions::FromPositions((
             vec3(-4.0, 0.0, -3.0),
             vec3(-4.0, 0.0, 3.0),
             vec3(1.0, 0.0, 3.0),
             vec3(1.0, 0.0, -3.0),
         )));
 
-        quads.assert_art(
+        mesh.assert_art(
             Axis::Y,
             "
             │    -5 -4 -3 -2 -1  0  1  2  3  4  5
