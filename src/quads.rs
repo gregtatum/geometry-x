@@ -627,6 +627,108 @@ impl QuadMesh {
         Ok(())
     }
 
+    /// Split a quad vertically, but disjointly. This will ensure the new quad
+    /// quad has its own positions separate from the original quad.
+    ///
+    /// ```
+    /// # use geometry_x::quads::*;
+    /// # use cgmath::*;
+    /// let mut mesh = QuadMesh::new();
+    /// mesh.create_single_quad(SingleQuadOptions::FromSize((
+    ///     vec2(6.0, 6.0),
+    ///     Facing {
+    ///         axis: Axis::Z,
+    ///         direction: Direction::Positive,
+    ///     },
+    /// )));
+    ///
+    /// mesh.assert_art(
+    ///     Axis::Z, "
+    ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
+    ///     │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │ -4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │ -3  ·  ·  ◆━━━━━━━━━━━━━━━━━◆  ·  ·
+    ///     │ -2  ·  ·  ┃  ·  ·  ┊  ·  ·  ┃  ·  ·
+    ///     │ -1  ·  ·  ┃  ·  ·  ┊  ·  ·  ┃  ·  ·
+    ///     │  0 ┈┈┈┈┈┈┈┃┈┈┈┈┈┈┈┈┊┈┈┈┈┈┈┈┈┃┈┈┈┈┈┈┈
+    ///     │  1  ·  ·  ┃  ·  ·  ┊  ·  ·  ┃  ·  ·
+    ///     │  2  ·  ·  ┃  ·  ·  ┊  ·  ·  ┃  ·  ·
+    ///     │  3  ·  ·  ◆━━━━━━━━━━━━━━━━━◆  ·  ·
+    ///     │  4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │  5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     "
+    /// );
+    ///
+    /// let quad_a = mesh.quads.len() - 1;
+    /// mesh.split_vertical_disjoint(quad_a, 0.2)
+    ///     .expect("Failed to split vertical disjoint");
+    ///
+    /// mesh.assert_art(
+    ///     Axis::Z,
+    ///     "
+    ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
+    ///     │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │ -4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │ -3  ·  ·  ◆━━━━━◆━━━━━━━━━━━◆  ·  ·
+    ///     │ -2  ·  ·  ┃  ·  ┃  ┊  ·  ·  ┃  ·  ·
+    ///     │ -1  ·  ·  ┃  ·  ┃  ┊  ·  ·  ┃  ·  ·
+    ///     │  0 ┈┈┈┈┈┈┈┃┈┈┈┈┈┃┈┈┊┈┈┈┈┈┈┈┈┃┈┈┈┈┈┈┈
+    ///     │  1  ·  ·  ┃  ·  ┃  ┊  ·  ·  ┃  ·  ·
+    ///     │  2  ·  ·  ┃  ·  ┃  ┊  ·  ·  ┃  ·  ·
+    ///     │  3  ·  ·  ◆━━━━━◆━━━━━━━━━━━◆  ·  ·
+    ///     │  4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │  5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     "
+    /// );
+    ///
+    /// mesh.translate(quad_a, vec3(1.0, 2.0, 0.0)).expect("Failed to translate.");
+    ///
+    /// mesh.assert_art(
+    ///     Axis::Z,
+    ///     "
+    ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
+    ///     │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │ -4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │ -3  ·  ·  ◆━━━━━◆  ┊  ·  ·  ·  ·  ·
+    ///     │ -2  ·  ·  ┃  ·  ┃  ┊  ·  ·  ·  ·  ·
+    ///     │ -1  ·  ·  ┃  ·  ┃  ◆━━━━━━━━━━━◆  ·
+    ///     │  0 ┈┈┈┈┈┈┈┃┈┈┈┈┈┃┈┈┃┈┈┈┈┈┈┈┈┈┈┈┃┈┈┈┈
+    ///     │  1  ·  ·  ┃  ·  ┃  ┃  ·  ·  ·  ┃  ·
+    ///     │  2  ·  ·  ┃  ·  ┃  ┃  ·  ·  ·  ┃  ·
+    ///     │  3  ·  ·  ◆━━━━━◆  ┃  ·  ·  ·  ┃  ·
+    ///     │  4  ·  ·  ·  ·  ·  ┃  ·  ·  ·  ┃  ·
+    ///     │  5  ·  ·  ·  ·  ·  ◆━━━━━━━━━━━◆  ·
+    ///     "
+    /// );
+    /// ```
+    pub fn split_vertical_disjoint(&mut self, quad_index: usize, t: f64) -> QuadResult<()> {
+        //  b---bc1  bc2---c
+        //  |     |  |     |
+        //  |     |  |     |
+        //  a---ad1  ad2---d
+        let (pt_bc, pt_ad) = {
+            let (pt_a, pt_b, pt_c, pt_d) = self.get_positions(self.get_quad(quad_index)?)?;
+            (pt_c.lerp(*pt_b, t), pt_d.lerp(*pt_a, t))
+        };
+        let bc1 = self.positions.len();
+        self.positions.push(pt_bc);
+        let bc2 = self.positions.len();
+        self.positions.push(pt_bc);
+
+        let ad1 = self.positions.len();
+        self.positions.push(pt_ad);
+        let ad2 = self.positions.len();
+        self.positions.push(pt_ad);
+
+        let (a, b, c, d) = self.get_quad_tuple(quad_index)?;
+        self.quads.push(vec4(ad2, bc2, c, d));
+
+        let mut quad = self.get_quad_mut(quad_index)?;
+        quad.z = bc1;
+        quad.w = ad1;
+        Ok(())
+    }
+
     /// Translate a single quad quad by a vector.
     ///
     /// ```
@@ -921,69 +1023,5 @@ fn skip_whitespace_lines(lines: &mut std::iter::Peekable<std::str::Lines>) {
             }
         }
         return;
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_create_quad_from_size() {
-        let mut mesh = QuadMesh::new();
-        mesh.create_single_quad(SingleQuadOptions::FromSize((
-            vec2(2.0, 4.0),
-            Facing {
-                axis: Axis::Z,
-                direction: Direction::Positive,
-            },
-        )));
-
-        mesh.assert_art(
-            Axis::Z,
-            "
-            │    -5 -4 -3 -2 -1  0  1  2  3  4  5
-            │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-            │ -4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-            │ -3  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-            │ -2  ·  ·  ·  ·  ◆━━━━━◆  ·  ·  ·  ·
-            │ -1  ·  ·  ·  ·  ┃  ┊  ┃  ·  ·  ·  ·
-            │  0 ┈┈┈┈┈┈┈┈┈┈┈┈┈┃┈┈┊┈┈┃┈┈┈┈┈┈┈┈┈┈┈┈┈
-            │  1  ·  ·  ·  ·  ┃  ┊  ┃  ·  ·  ·  ·
-            │  2  ·  ·  ·  ·  ◆━━━━━◆  ·  ·  ·  ·
-            │  3  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-            │  4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-            │  5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-            ",
-        );
-    }
-
-    #[test]
-    fn test_create_quad_positions() {
-        let mut mesh = QuadMesh::new();
-        mesh.create_single_quad(SingleQuadOptions::FromPositions((
-            vec3(-4.0, 0.0, -3.0),
-            vec3(-4.0, 0.0, 3.0),
-            vec3(1.0, 0.0, 3.0),
-            vec3(1.0, 0.0, -3.0),
-        )));
-
-        mesh.assert_art(
-            Axis::Y,
-            "
-            │    -5 -4 -3 -2 -1  0  1  2  3  4  5
-            │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-            │ -4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-            │ -3  ·  ◆━━━━━━━━━━━━━━◆  ·  ·  ·  ·
-            │ -2  ·  ┃  ·  ·  ·  ┊  ┃  ·  ·  ·  ·
-            │ -1  ·  ┃  ·  ·  ·  ┊  ┃  ·  ·  ·  ·
-            │  0 ┈┈┈┈┃┈┈┈┈┈┈┈┈┈┈┈┊┈┈┃┈┈┈┈┈┈┈┈┈┈┈┈┈
-            │  1  ·  ┃  ·  ·  ·  ┊  ┃  ·  ·  ·  ·
-            │  2  ·  ┃  ·  ·  ·  ┊  ┃  ·  ·  ·  ·
-            │  3  ·  ◆━━━━━━━━━━━━━━◆  ·  ·  ·  ·
-            │  4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-            │  5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-            ",
-        );
     }
 }
