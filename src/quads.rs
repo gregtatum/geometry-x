@@ -252,21 +252,16 @@ impl QuadMesh {
     }
 
     /// Given a [Quad], look up a [Position]s tuple.
-    pub fn get_positions(&self, quad: &Quad) -> (&Position, &Position, &Position, &Position) {
-        (
-            self.positions
-                .get(quad.x)
-                .expect("Unable to find position from quad"),
-            self.positions
-                .get(quad.y)
-                .expect("Unable to find position from quad"),
-            self.positions
-                .get(quad.z)
-                .expect("Unable to find position from quad"),
-            self.positions
-                .get(quad.w)
-                .expect("Unable to find position from quad"),
-        )
+    pub fn get_positions(
+        &self,
+        quad: &Quad,
+    ) -> QuadResult<(&Position, &Position, &Position, &Position)> {
+        Ok((
+            self.get_position(quad.x)?,
+            self.get_position(quad.y)?,
+            self.get_position(quad.z)?,
+            self.get_position(quad.w)?,
+        ))
     }
 
     /// Iterate through the quads.
@@ -287,7 +282,7 @@ impl QuadMesh {
     /// );
     ///
     /// for quad in mesh.iter_quads() {
-    ///    let (a, b, c, d) = mesh.get_positions(&quad);
+    ///    let (a, b, c, d) = mesh.get_positions(&quad).expect("Failed to get positions");
     ///    assert_eq!(a, &Vector3::new(1.0, -2.0, 0.0));
     ///    assert_eq!(b, &Vector3::new(1.0, 2.0, 0.0));
     ///    assert_eq!(c, &Vector3::new(-1.0, 2.0, 0.0));
@@ -407,7 +402,7 @@ impl QuadMesh {
     /// );
     ///
     /// let quad_a = mesh.quads.len() - 1;
-    /// mesh.split_vertical(quad_a, 0.2).unwrap();
+    /// mesh.split_vertical(quad_a, 0.2).expect("Failed to split vertical.");
     ///
     /// mesh.assert_art(
     ///     Axis::Z,
@@ -433,7 +428,7 @@ impl QuadMesh {
         //  |   |    |
         //  a---ad---d
         let (pt_bc, pt_ad) = {
-            let (pt_a, pt_b, pt_c, pt_d) = self.get_positions(self.get_quad(quad_index)?);
+            let (pt_a, pt_b, pt_c, pt_d) = self.get_positions(self.get_quad(quad_index)?)?;
             (pt_c.lerp(*pt_b, t), pt_d.lerp(*pt_a, t))
         };
         let bc = self.positions.len();
@@ -483,7 +478,7 @@ impl QuadMesh {
     /// );
     ///
     /// let quad_a = mesh.quads.len() - 1;
-    /// mesh.split_horizontal(quad_a, 0.2).unwrap();
+    /// mesh.split_horizontal(quad_a, 0.2).expect("Failed to split horizontal.");
     ///
     /// mesh.assert_art(
     ///     Axis::Z,
@@ -510,7 +505,7 @@ impl QuadMesh {
         //  |        |
         //  a--------d
         let (pt_ab, pt_cd) = {
-            let (pt_a, pt_b, pt_c, pt_d) = self.get_positions(self.get_quad(quad_index)?);
+            let (pt_a, pt_b, pt_c, pt_d) = self.get_positions(self.get_quad(quad_index)?)?;
             (pt_a.lerp(*pt_b, t), pt_d.lerp(*pt_c, t))
         };
         let ab = self.positions.len();
@@ -528,8 +523,8 @@ impl QuadMesh {
         Ok(())
     }
 
-    /// Split a quad quad horizontally, but disjoint. This will ensure the new quad
-    /// quad has its own positions.
+    /// Split a quad horizontally, but disjointly. This will ensure the new quad
+    /// quad has its own positions separate from the original quad.
     ///
     /// ```
     /// # use geometry_x::quads::*;
@@ -561,7 +556,8 @@ impl QuadMesh {
     /// );
     ///
     /// let quad_a = mesh.quads.len() - 1;
-    /// mesh.split_horizontal_disjoint(quad_a, 0.2).unwrap();
+    /// mesh.split_horizontal_disjoint(quad_a, 0.2)
+    ///     .expect("Failed to split horizontal disjoint");
     ///
     /// mesh.assert_art(
     ///     Axis::Z,
@@ -609,7 +605,7 @@ impl QuadMesh {
         //  | target |
         //  a--------d
         let (pt_ab, pt_cd) = {
-            let (pt_a, pt_b, pt_c, pt_d) = self.get_positions(self.get_quad(quad_index)?);
+            let (pt_a, pt_b, pt_c, pt_d) = self.get_positions(self.get_quad(quad_index)?)?;
             (pt_a.lerp(*pt_b, t), pt_d.lerp(*pt_c, t))
         };
         let ab1 = self.positions.len();
@@ -703,7 +699,7 @@ impl Default for QuadMesh {
 pub trait TextArt {
     /// Given a geometry type and an axis, draw it using text and an orthogonal
     /// projection.
-    fn as_text_art(&self, axis: Axis) -> String;
+    fn as_text_art(&self, axis: Axis) -> QuadResult<String>;
 
     /// Assert that the geometry matches some kind of art. Ignores leading and trailing
     /// whitespace.
@@ -758,14 +754,14 @@ fn replace_codepoint(str: &mut String, replacement: &str, index: usize) {
         str.char_indices()
             .nth(index)
             .map(|(pos, ch)| (pos..pos + ch.len_utf8()))
-            .unwrap(),
+            .expect("Failed to replace codepoint."),
         replacement,
     )
 }
 
 impl TextArt for QuadMesh {
     /// Draw a [QuadMesh] using text art. See <https://gregtatum.com/writing/2020/ascii-physics-system/>
-    fn as_text_art(&self, axis: Axis) -> String {
+    fn as_text_art(&self, axis: Axis) -> QuadResult<String> {
         let x_margin = 6;
         let y_margin = 1;
         let col_size = 3;
@@ -773,7 +769,7 @@ impl TextArt for QuadMesh {
         let half_h: usize = 5;
         let mut lines = get_grid(half_w, half_h);
         for quad in self.iter_quads() {
-            let (a, b, c, d) = self.get_positions(quad);
+            let (a, b, c, d) = self.get_positions(quad)?;
 
             let mut translate = |px: f64, py: f64| -> (usize, usize) {
                 (
@@ -854,11 +850,13 @@ impl TextArt for QuadMesh {
             string.push_str(item.trim_end());
             string.push('\n');
         }
-        string
+        Ok(string)
     }
 
     fn assert_art(&self, axis: Axis, expect: &str) {
-        let actual = self.as_text_art(axis);
+        let actual = self
+            .as_text_art(axis)
+            .expect("Failed to generate QuadMesh text art.");
         let mut actual_iter = actual.lines();
         let mut expect_iter = expect.lines().peekable();
         // Skip leading whitespace
