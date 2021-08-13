@@ -853,6 +853,8 @@ impl QuadMesh {
 
     /// Split all of the quads in a loops.
     ///
+    /// ## Example with vertical splitting.
+    ///
     /// ```
     /// # use geometry_x::quads::*;
     /// # use cgmath::*;
@@ -905,6 +907,61 @@ impl QuadMesh {
     ///     "
     /// );
     /// ```
+    ///
+    /// ## Example with horizontal splitting.
+    ///
+    /// ```
+    /// # use geometry_x::quads::*;
+    /// # use cgmath::*;
+    /// let mut mesh = QuadMesh::new();
+    /// mesh.create_single_quad(SingleQuadOptions::FromSize((
+    ///     vec2(8.0, 8.0),
+    ///     Facing {
+    ///         axis: Axis::Z,
+    ///         direction: Direction::Positive,
+    ///     },
+    /// )));
+    ///
+    /// mesh.split_vertical(0, 0.5).expect("Failed to split");
+    /// mesh.split_vertical(0, 0.5).expect("Failed to split");
+    /// mesh.split_vertical(1, 0.5).expect("Failed to split");
+    ///
+    /// mesh.assert_art(
+    ///     Axis::Z, "
+    ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
+    ///     │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │ -4  ·  ◆━━━━━◆━━━━━◆━━━━━◆━━━━━◆  ·
+    ///     │ -3  ·  ┃  ·  ┃  ·  ┃  ·  ┃  ·  ┃  ·
+    ///     │ -2  ·  ┃  ·  ┃  ·  ┃  ·  ┃  ·  ┃  ·
+    ///     │ -1  ·  ┃  ·  ┃  ·  ┃  ·  ┃  ·  ┃  ·
+    ///     │  0 ┈┈┈┈┃┈┈┈┈┈┃┈┈┈┈┈┃┈┈┈┈┈┃┈┈┈┈┈┃┈┈┈┈
+    ///     │  1  ·  ┃  ·  ┃  ·  ┃  ·  ┃  ·  ┃  ·
+    ///     │  2  ·  ┃  ·  ┃  ·  ┃  ·  ┃  ·  ┃  ·
+    ///     │  3  ·  ┃  ·  ┃  ·  ┃  ·  ┃  ·  ┃  ·
+    ///     │  4  ·  ◆━━━━━◆━━━━━◆━━━━━◆━━━━━◆  ·
+    ///     │  5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     "
+    /// );
+    ///
+    /// mesh.split_loop(0, 0.2, true);
+    ///
+    /// mesh.assert_art(
+    ///     Axis::Z, "
+    ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
+    ///     │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │ -4  ·  ◆━━━━━◆━━━━━◆━━━━━◆━━━━━◆  ·
+    ///     │ -3  ·  ┃  ·  ┃  ·  ┃  ·  ┃  ·  ┃  ·
+    ///     │ -2  ·  ◆━━━━━◆━━━━━◆━━━━━◆━━━━━◆  ·
+    ///     │ -1  ·  ┃  ·  ┃  ·  ┃  ·  ┃  ·  ┃  ·
+    ///     │  0 ┈┈┈┈┃┈┈┈┈┈┃┈┈┈┈┈┃┈┈┈┈┈┃┈┈┈┈┈┃┈┈┈┈
+    ///     │  1  ·  ┃  ·  ┃  ·  ┃  ·  ┃  ·  ┃  ·
+    ///     │  2  ·  ┃  ·  ┃  ·  ┃  ·  ┃  ·  ┃  ·
+    ///     │  3  ·  ┃  ·  ┃  ·  ┃  ·  ┃  ·  ┃  ·
+    ///     │  4  ·  ◆━━━━━◆━━━━━◆━━━━━◆━━━━━◆  ·
+    ///     │  5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     "
+    /// );
+    /// ```
     pub fn split_loop(&mut self, quad_index: usize, t: f64, opposite: bool) -> QuadResult<()> {
         //  lt----a----rt
         //  |     .     |
@@ -913,7 +970,7 @@ impl QuadMesh {
         //  lb----b----rb
 
         let (quad_index_a, quad_index_b, quad_index_c, quad_index_d) =
-            if opposite { (1, 2, 3, 0) } else { (0, 1, 2, 3) };
+            if opposite { (3, 0, 1, 2) } else { (0, 1, 2, 3) };
 
         let position_index_lb = self.get_quad(quad_index)?[quad_index_a];
         let position_index_lt = self.get_quad(quad_index)?[quad_index_b];
