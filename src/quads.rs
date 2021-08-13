@@ -171,6 +171,9 @@ pub struct QuadMesh {
     pub positions: Positions,
     /// The computed normals for a quad mesh.
     pub normals: Option<Normals>,
+    /// Unused position/normal indexes. This can result from operations such as the mergin
+    /// of shared positions.
+    pub unused: Vec<usize>,
 }
 
 /// A shared error for [QuadMesh] operations.
@@ -180,6 +183,10 @@ pub enum QuadError {
     PositionIndexError,
     /// A quad was not found for a given index.
     QuadIndexError,
+    /// A normal was not found for a given index.
+    NormalIndexError,
+    /// Attempted to gt a normal when it was not computed.
+    NormalsNotComputed,
 }
 
 /// A [Result] with the [QuadError] applied.
@@ -192,6 +199,7 @@ impl QuadMesh {
             quads: vec![],
             positions: vec![],
             normals: None,
+            unused: vec![],
         }
     }
 
@@ -201,6 +209,7 @@ impl QuadMesh {
             quads: vec![],
             positions: vec![],
             normals: Some(vec![]),
+            unused: vec![],
         }
     }
 
@@ -217,6 +226,28 @@ impl QuadMesh {
         match self.positions.get_mut(index) {
             Some(position) => Ok(position),
             None => Err(QuadError::PositionIndexError),
+        }
+    }
+
+    /// Get a normal from the mesh by index.
+    pub fn get_normal(&self, index: usize) -> QuadResult<&Normal> {
+        match self.normals {
+            Some(ref normals) => match normals.get(index) {
+                Some(normal) => Ok(normal),
+                None => Err(QuadError::NormalIndexError),
+            },
+            None => Err(QuadError::NormalsNotComputed),
+        }
+    }
+
+    /// Get a mut normal from the mesh by index.
+    pub fn get_normal_mut(&mut self, index: usize) -> QuadResult<&mut Normal> {
+        match self.normals {
+            Some(ref mut normals) => match normals.get_mut(index) {
+                Some(normal) => Ok(normal),
+                None => Err(QuadError::NormalIndexError),
+            },
+            None => Err(QuadError::NormalsNotComputed),
         }
     }
 
@@ -352,16 +383,20 @@ impl QuadMesh {
         };
 
         self.quads.push(quad);
-        let mut normals = vec![];
-        let normal = self.get_normal(&quad);
-        normals.push(normal);
-        normals.push(normal);
-        normals.push(normal);
-        normals.push(normal);
+
+        if self.normals.is_some() {
+            let normal = self.compute_normal(&quad);
+            if let Some(ref mut normals) = self.normals {
+                normals.push(normal);
+                normals.push(normal);
+                normals.push(normal);
+                normals.push(normal);
+            }
+        }
     }
 
     /// Compute a quad's normal regardless of it's neighboring quads.
-    pub fn get_normal(&self, quad: &Quad) -> Normal {
+    pub fn compute_normal(&self, quad: &Quad) -> Normal {
         let position_a = self.positions.get(quad.x).expect("Unable to find position");
         let position_b = self.positions.get(quad.y).expect("Unable to find position");
         let position_c = self.positions.get(quad.z).expect("Unable to find position");
@@ -729,6 +764,290 @@ impl QuadMesh {
         Ok(())
     }
 
+    /// Utility function to split mesh in a loop in a single direction, based off of the
+    /// previously split quad's positions. The cell orientation is based off the previously
+    /// split cell.
+    fn walk_and_split_loop(
+        &mut self,
+        mut position_index_lb: usize,
+        mut position_index_mb: usize,
+        mut position_index_rb: usize,
+        t: f64,
+    ) -> QuadResult<Option<usize>> {
+        //  LT----MT---RT
+        //   |    .     |
+        //   |    .     | <- split this cell
+        //   |    .     |
+        //  LB----MB---RB
+        //   |    |     |
+        //   |    |     | <- previous cell
+        //   |    |     |
+        //   *----*-----*
+
+        let mut new_position_index = None;
+        loop {
+            let quad_index = self.get_quad_from_edge(position_index_lb, position_index_rb);
+            if quad_index.is_none() {
+                break;
+            }
+            let quad_index = quad_index.unwrap();
+            let quad_array = {
+                let quad = self.get_quad(quad_index)?;
+                [quad.x, quad.y, quad.z, quad.w]
+            };
+            let quad_index_a = quad_array
+                .iter()
+                .position(|&p| p == position_index_lb)
+                .expect("Quad did not contain index");
+            let quad_index_d = quad_array
+                .iter()
+                .position(|&p| p == position_index_rb)
+                .expect("Quad did not contain index");
+            let quad_index_b = (quad_index_a + 1) % 4;
+            let quad_index_c = (quad_index_d + 3) % 4;
+
+            let position_index_lt = quad_array[quad_index_b];
+            let position_index_mt = self.positions.len();
+            let position_index_rt = quad_array[quad_index_c];
+
+            // Create a new middle position at the opposite end
+            let position = self
+                .get_position(position_index_lt)?
+                .lerp(*self.get_position(position_index_rt)?, t);
+            self.positions.push(position);
+
+            if self.normals.is_some() {
+                let mut normal = self
+                    .get_normal(position_index_lt)?
+                    .lerp(*self.get_normal(position_index_rt)?, t);
+                if let Some(ref mut normals) = self.normals {
+                    normal.normalize();
+                    normals.push(normal);
+                }
+            }
+
+            // Construct the split cells.
+            {
+                let mut quad = self.get_quad_mut(quad_index)?;
+                quad[quad_index_c] = position_index_mt;
+                quad[quad_index_d] = position_index_mb;
+            }
+
+            let mut quad_new = vec4(0, 0, 0, 0);
+
+            quad_new[quad_index_a] = position_index_mb;
+            quad_new[quad_index_b] = position_index_mt;
+            quad_new[quad_index_c] = position_index_rt;
+            quad_new[quad_index_d] = position_index_rb;
+            self.quads.push(quad_new);
+
+            // Modify the arguments to keep on walking.
+            position_index_lb = position_index_lt;
+            position_index_mb = position_index_mt;
+            position_index_rb = position_index_rt;
+
+            new_position_index = Some(position_index_mt);
+        }
+        Ok(new_position_index)
+    }
+
+    /// Split all of the quads in a loops.
+    ///
+    /// ```
+    /// # use geometry_x::quads::*;
+    /// # use cgmath::*;
+    /// let mut mesh = QuadMesh::new();
+    /// mesh.create_single_quad(SingleQuadOptions::FromSize((
+    ///     vec2(8.0, 8.0),
+    ///     Facing {
+    ///         axis: Axis::Z,
+    ///         direction: Direction::Positive,
+    ///     },
+    /// )));
+    ///
+    /// mesh.split_horizontal(0, 0.5).expect("Failed to split");
+    /// mesh.split_horizontal(0, 0.5).expect("Failed to split");
+    /// mesh.split_horizontal(1, 0.5).expect("Failed to split");
+    ///
+    /// mesh.assert_art(
+    ///     Axis::Z, "
+    ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
+    ///     │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │ -4  ·  ◆━━━━━━━━━━━━━━━━━━━━━━━◆  ·
+    ///     │ -3  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+    ///     │ -2  ·  ◆━━━━━━━━━━━━━━━━━━━━━━━◆  ·
+    ///     │ -1  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+    ///     │  0 ┈┈┈┈◆━━━━━━━━━━━━━━━━━━━━━━━◆┈┈┈┈
+    ///     │  1  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+    ///     │  2  ·  ◆━━━━━━━━━━━━━━━━━━━━━━━◆  ·
+    ///     │  3  ·  ┃  ·  ·  ·  ┊  ·  ·  ·  ┃  ·
+    ///     │  4  ·  ◆━━━━━━━━━━━━━━━━━━━━━━━◆  ·
+    ///     │  5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     "
+    /// );
+    ///
+    /// mesh.split_loop(0, 0.2, false);
+    ///
+    /// mesh.assert_art(
+    ///     Axis::Z, "
+    ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
+    ///     │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     │ -4  ·  ◆━━━━━━━━━━━━━━━━━◆━━━━━◆  ·
+    ///     │ -3  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
+    ///     │ -2  ·  ◆━━━━━━━━━━━━━━━━━◆━━━━━◆  ·
+    ///     │ -1  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
+    ///     │  0 ┈┈┈┈◆━━━━━━━━━━━━━━━━━◆━━━━━◆┈┈┈┈
+    ///     │  1  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
+    ///     │  2  ·  ◆━━━━━━━━━━━━━━━━━◆━━━━━◆  ·
+    ///     │  3  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
+    ///     │  4  ·  ◆━━━━━━━━━━━━━━━━━◆━━━━━◆  ·
+    ///     │  5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
+    ///     "
+    /// );
+    /// ```
+    pub fn split_loop(&mut self, quad_index: usize, t: f64, opposite: bool) -> QuadResult<()> {
+        //  lt----a----rt
+        //  |     .     |
+        //  |     .     |
+        //  |     .     |
+        //  lb----b----rb
+
+        let (quad_index_a, quad_index_b, quad_index_c, quad_index_d) =
+            if opposite { (1, 2, 3, 0) } else { (0, 1, 2, 3) };
+
+        let position_index_lb = self.get_quad(quad_index)?[quad_index_a];
+        let position_index_lt = self.get_quad(quad_index)?[quad_index_b];
+        let position_index_rt = self.get_quad(quad_index)?[quad_index_c];
+        let position_index_rb = self.get_quad(quad_index)?[quad_index_d];
+        let position_index_mt = self.positions.len();
+        let position_index_mb = self.positions.len() + 1;
+
+        let position_a = self
+            .get_position(position_index_lt)?
+            .lerp(*self.get_position(position_index_rt)?, t);
+        let position_b = self
+            .get_position(position_index_lb)?
+            .lerp(*self.get_position(position_index_rb)?, t);
+        self.positions.push(position_a);
+        self.positions.push(position_b);
+
+        if self.normals.is_some() {
+            let normal_a = self
+                .get_normal(position_index_lt)?
+                .lerp(*self.get_normal(position_index_rt)?, t);
+            let normal_b = self
+                .get_normal(position_index_lb)?
+                .lerp(*self.get_normal(position_index_rb)?, t);
+            if let Some(ref mut normals) = self.normals {
+                normals.push(normal_a);
+                normals.push(normal_b);
+            };
+        };
+
+        // Split cells.
+        {
+            let quad_l = self.get_quad_mut(quad_index)?;
+            quad_l[quad_index_c] = position_index_mt;
+            quad_l[quad_index_d] = position_index_mb;
+        }
+
+        let mut quad_r = vec4(0, 0, 0, 0);
+        quad_r[quad_index_a] = position_index_mb;
+        quad_r[quad_index_b] = position_index_mt;
+        quad_r[quad_index_c] = position_index_rt;
+        quad_r[quad_index_d] = position_index_rb;
+        self.quads.push(quad_r);
+
+        let mut looop = vec![quad_index, self.quads.len() - 1];
+
+        // Split by walking up and down from the cell, and then merge the last points if they
+        // meet.
+        let new_position_index =
+            self.walk_and_split_loop(position_index_lt, position_index_mt, position_index_rt, t)?;
+
+        if !self.merge_positions_if_equal(new_position_index, position_index_mb)? {
+            self.walk_and_split_loop(
+                position_index_rb,
+                position_index_mb,
+                position_index_lb,
+                1.0 - t,
+            )?;
+        }
+
+        Ok(())
+    }
+
+    fn merge_positions_if_equal(
+        &mut self,
+        position_index_a: Option<usize>,
+        position_index_b: usize,
+    ) -> QuadResult<bool> {
+        if position_index_a.is_none() {
+            // This a little hacky, but it can be generalized if needed.
+            return Ok(false);
+        }
+        let position_index_a = position_index_a.unwrap();
+        let position_a = self.get_position(position_index_a)?;
+        let position_b = self.get_position(position_index_b)?;
+        if position_a.x == position_b.x
+            && position_a.y == position_b.y
+            && position_a.z == position_b.z
+        {
+            let position_index_saved = if position_index_a < position_index_b {
+                position_index_a
+            } else {
+                position_index_b
+            };
+            let position_index_deleted = if position_index_a > position_index_b {
+                position_index_a
+            } else {
+                position_index_b
+            };
+
+            // Update the quads.
+            for quad in &mut self.quads {
+                for i in 0..4 {
+                    let position_index = quad[i];
+                    if position_index == position_index_deleted {
+                        quad[i] = position_index_saved;
+                    } else if position_index > position_index_deleted {
+                        quad[i] = position_index - 1;
+                    }
+                }
+            }
+
+            // Free this position up to be re-used.
+            self.unused.push(position_index_deleted);
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    fn get_quad_from_edge(
+        &self,
+        position_index_a: usize,
+        position_index_b: usize,
+    ) -> Option<usize> {
+        self.quads
+            .iter()
+            .enumerate()
+            .find(|(index, quad)| {
+                if quad.x == position_index_a {
+                    quad.w == position_index_b || quad.y == position_index_b
+                } else if quad.y == position_index_a {
+                    quad.x == position_index_b || quad.z == position_index_b
+                } else if quad.z == position_index_a {
+                    quad.y == position_index_b || quad.w == position_index_b
+                } else if quad.w == position_index_a {
+                    quad.z == position_index_b || quad.x == position_index_b
+                } else {
+                    false
+                }
+            })
+            .map(|tuple| tuple.0)
+    }
+
     /// Translate a single quad quad by a vector.
     ///
     /// ```
@@ -789,6 +1108,31 @@ impl QuadMesh {
         *(self.get_position_mut(d))? += translate;
         Ok(())
     }
+
+    // pub fn average_normal_for_position(&mut self) {}
+    // pub fn compute_center_positions(&mut self) {}
+    // pub fn compute_cell_center(&mut self) {}
+    // pub fn compute_normals(&mut self) {}
+    // pub fn create_box(&mut self) {}
+    // pub fn create_box_disjoint(&mut self) {}
+    // pub fn elements_from_quads(&mut self) {}
+    // pub fn extrude(&mut self) {}
+    // pub fn extrude_disjoint(&mut self) {}
+    // pub fn flip(&mut self) {}
+    // pub fn get_cell_normal(&mut self) {}
+    // pub fn get_cell_from_edge(&mut self) {}
+    // pub fn get_cells_from_position_index(&mut self) {}
+    // pub fn get_center(&mut self) {}
+    // pub fn get_loop(&mut self) {}
+    // pub fn inset(&mut self) {}
+    // pub fn inset_disjoint(&mut self) {}
+    // pub fn inset_loop(&mut self) {}
+    // pub fn merge_positions(&mut self) {}
+    // pub fn mirror(&mut self) {}
+    // pub fn subdivide(&mut self) {}
+    // pub fn update_normals(&mut self) {}
+    // pub fn get_cell_neighbors(&mut self) {}
+    // pub fn grow_selection(&mut self) {}
 }
 
 impl Default for QuadMesh {
