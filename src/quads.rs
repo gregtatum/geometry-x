@@ -314,10 +314,10 @@ impl QuadMesh {
     ///
     /// for quad in mesh.iter_quads() {
     ///    let (a, b, c, d) = mesh.get_positions(&quad).expect("Failed to get positions");
-    ///    assert_eq!(a, &Vector3::new(1.0, -2.0, 0.0));
-    ///    assert_eq!(b, &Vector3::new(1.0, 2.0, 0.0));
-    ///    assert_eq!(c, &Vector3::new(-1.0, 2.0, 0.0));
-    ///    assert_eq!(d, &Vector3::new(-1.0, -2.0, 0.0));
+    ///    assert_eq!(a, &Vector3::new(-1.0, -2.0, 0.0));
+    ///    assert_eq!(b, &Vector3::new(-1.0, 2.0, 0.0));
+    ///    assert_eq!(c, &Vector3::new(1.0, 2.0, 0.0));
+    ///    assert_eq!(d, &Vector3::new(1.0, -2.0, 0.0));
     /// }
     /// ```
     pub fn iter_quads(&self) -> impl Iterator<Item = &Quad> {
@@ -358,25 +358,25 @@ impl QuadMesh {
                 positions.push(d);
             }
             SingleQuadOptions::FromSize((size, facing)) => {
-                let (x, y) = (size.x / 2.0, size.y / 2.0);
+                let (w, h) = (size.x / 2.0, size.y / 2.0);
                 match facing.axis {
                     Axis::X => {
-                        positions.push((0.0, -x, -y).into());
-                        positions.push((0.0, x, -y).into());
-                        positions.push((0.0, x, y).into());
-                        positions.push((0.0, -x, y).into());
+                        positions.push((0.0, -w, -h).into());
+                        positions.push((0.0, w, -h).into());
+                        positions.push((0.0, w, h).into());
+                        positions.push((0.0, -w, h).into());
                     }
                     Axis::Y => {
-                        positions.push((-x, 0.0, -y).into());
-                        positions.push((-x, 0.0, y).into());
-                        positions.push((x, 0.0, y).into());
-                        positions.push((x, 0.0, -y).into());
+                        positions.push((-w, 0.0, -h).into());
+                        positions.push((-w, 0.0, h).into());
+                        positions.push((w, 0.0, h).into());
+                        positions.push((w, 0.0, -h).into());
                     }
                     Axis::Z => {
-                        positions.push((x, -y, 0.0).into());
-                        positions.push((x, y, 0.0).into());
-                        positions.push((-x, y, 0.0).into());
-                        positions.push((-x, -y, 0.0).into());
+                        positions.push((-w, -h, 0.0).into());
+                        positions.push((-w, h, 0.0).into());
+                        positions.push((w, h, 0.0).into());
+                        positions.push((w, -h, 0.0).into());
                     }
                 };
             }
@@ -464,7 +464,7 @@ impl QuadMesh {
         //  a---ad---d
         let (pt_bc, pt_ad) = {
             let (pt_a, pt_b, pt_c, pt_d) = self.get_positions(self.get_quad(quad_index)?)?;
-            (pt_c.lerp(*pt_b, t), pt_d.lerp(*pt_a, t))
+            (pt_b.lerp(*pt_c, t), pt_a.lerp(*pt_d, t))
         };
         let bc = self.positions.len();
         self.positions.push(pt_bc);
@@ -716,7 +716,7 @@ impl QuadMesh {
     ///     "
     /// );
     ///
-    /// mesh.translate(quad_a, vec3(1.0, 2.0, 0.0)).expect("Failed to translate.");
+    /// mesh.translate(quad_a, vec3(-1.0, 2.0, 0.0)).expect("Failed to translate.");
     ///
     /// mesh.assert_art(
     ///     Axis::Z,
@@ -724,15 +724,15 @@ impl QuadMesh {
     ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
     ///     │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
     ///     │ -4  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-    ///     │ -3  ·  ·  ◆━━━━━◆  ┊  ·  ·  ·  ·  ·
-    ///     │ -2  ·  ·  ┃  ·  ┃  ┊  ·  ·  ·  ·  ·
-    ///     │ -1  ·  ·  ┃  ·  ┃  ◆━━━━━━━━━━━◆  ·
-    ///     │  0 ┈┈┈┈┈┈┈┃┈┈┈┈┈┃┈┈┃┈┈┈┈┈┈┈┈┈┈┈┃┈┈┈┈
-    ///     │  1  ·  ·  ┃  ·  ┃  ┃  ·  ·  ·  ┃  ·
-    ///     │  2  ·  ·  ┃  ·  ┃  ┃  ·  ·  ·  ┃  ·
-    ///     │  3  ·  ·  ◆━━━━━◆  ┃  ·  ·  ·  ┃  ·
-    ///     │  4  ·  ·  ·  ·  ·  ┃  ·  ·  ·  ┃  ·
-    ///     │  5  ·  ·  ·  ·  ·  ◆━━━━━━━━━━━◆  ·
+    ///     │ -3  ·  ·  ·  ·  ◆━━━━━━━━━━━◆  ·  ·
+    ///     │ -2  ·  ·  ·  ·  ┃  ┊  ·  ·  ┃  ·  ·
+    ///     │ -1  ·  ◆━━━━━◆  ┃  ┊  ·  ·  ┃  ·  ·
+    ///     │  0 ┈┈┈┈┃┈┈┈┈┈┃┈┈┃┈┈┊┈┈┈┈┈┈┈┈┃┈┈┈┈┈┈┈
+    ///     │  1  ·  ┃  ·  ┃  ┃  ┊  ·  ·  ┃  ·  ·
+    ///     │  2  ·  ┃  ·  ┃  ┃  ┊  ·  ·  ┃  ·  ·
+    ///     │  3  ·  ┃  ·  ┃  ◆━━━━━━━━━━━◆  ·  ·
+    ///     │  4  ·  ┃  ·  ┃  ·  ┊  ·  ·  ·  ·  ·
+    ///     │  5  ·  ◆━━━━━◆  ·  ┊  ·  ·  ·  ·  ·
     ///     "
     /// );
     /// ```
@@ -743,7 +743,7 @@ impl QuadMesh {
         //  a---ad1  ad2---d
         let (pt_bc, pt_ad) = {
             let (pt_a, pt_b, pt_c, pt_d) = self.get_positions(self.get_quad(quad_index)?)?;
-            (pt_c.lerp(*pt_b, t), pt_d.lerp(*pt_a, t))
+            (pt_b.lerp(*pt_c, t), pt_a.lerp(*pt_d, t))
         };
         let bc1 = self.positions.len();
         self.positions.push(pt_bc);
@@ -892,15 +892,15 @@ impl QuadMesh {
     ///     Axis::Z, "
     ///     │    -5 -4 -3 -2 -1  0  1  2  3  4  5
     ///     │ -5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
-    ///     │ -4  ·  ◆━━━━━━━━━━━━━━━━━◆━━━━━◆  ·
-    ///     │ -3  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
-    ///     │ -2  ·  ◆━━━━━━━━━━━━━━━━━◆━━━━━◆  ·
-    ///     │ -1  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
-    ///     │  0 ┈┈┈┈◆━━━━━━━━━━━━━━━━━◆━━━━━◆┈┈┈┈
-    ///     │  1  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
-    ///     │  2  ·  ◆━━━━━━━━━━━━━━━━━◆━━━━━◆  ·
-    ///     │  3  ·  ┃  ·  ·  ·  ┊  ·  ┃  ·  ┃  ·
-    ///     │  4  ·  ◆━━━━━━━━━━━━━━━━━◆━━━━━◆  ·
+    ///     │ -4  ·  ◆━━━━━◆━━━━━━━━━━━━━━━━━◆  ·
+    ///     │ -3  ·  ┃  ·  ┃  ·  ┊  ·  ·  ·  ┃  ·
+    ///     │ -2  ·  ◆━━━━━◆━━━━━━━━━━━━━━━━━◆  ·
+    ///     │ -1  ·  ┃  ·  ┃  ·  ┊  ·  ·  ·  ┃  ·
+    ///     │  0 ┈┈┈┈◆━━━━━◆━━━━━━━━━━━━━━━━━◆┈┈┈┈
+    ///     │  1  ·  ┃  ·  ┃  ·  ┊  ·  ·  ·  ┃  ·
+    ///     │  2  ·  ◆━━━━━◆━━━━━━━━━━━━━━━━━◆  ·
+    ///     │  3  ·  ┃  ·  ┃  ·  ┊  ·  ·  ·  ┃  ·
+    ///     │  4  ·  ◆━━━━━◆━━━━━━━━━━━━━━━━━◆  ·
     ///     │  5  ·  ·  ·  ·  ·  ┊  ·  ·  ·  ·  ·
     ///     "
     /// );
